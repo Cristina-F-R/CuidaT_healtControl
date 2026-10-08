@@ -1,469 +1,218 @@
-\# TECH\_SPEC.md: CuidaT Core System Specification
-
-&nbsp;
+# TECH_SPEC.md: CuidaT Core System Specification
 
 This document serves as the single source of truth for the development of CuidaT. Any AI coding agent must consult and adhere strictly to this specification before introducing structural, architectural, or logic changes.
 
-&nbsp;
-
-\---
-
-&nbsp;
-
-\#\# 1\. Product Vision & Operational Constraints
-
-CuidaT is a reactive web application designed for visual tracking, correlation, and management of symptoms, potential triggers, and medication schedules across pets, children, and adults.
-
-\- Core Use Cases & Behavioral Contracts:
-
-  1\. Quick Event Logging, Editing & Deletion:
-
-     \- Creation: User drags a badge (e.g., 🤢 Vomit) onto a calendar day or taps it on mobile, triggering \`EventLogModal.vue\`. User sets approximate time, selects intensity (1: Mild, 2: Moderate, 3: Severe), types sanitized notes (max 300 chars), and saves.
-
-     \- Modification / Removal: Clicking an existing event dot opens the modal in edit mode with prefilled values. The modal displays an explicit secondary destructive action ("Eliminar registro"), which triggers \`deleteLog(id)\` and removes the entry from reactive state/database.
-
-  2\. Deterministic Correlation Discovery:
-
-     \- Computation: The client or server runs \`detectCorrelations()\` matching every symptom against prior triggers occurring within a strict 12–48h window (\`0 \<= diffHours \<= maxWindowHours\`). Events outside this window or where the symptom precedes the trigger are ignored.
-
-     \- Visualization: Coincidences highlight matching calendar days and populate \`MonthlyInsightsSummary.vue\` with explicit medical disclaimers ("Coincidencias, no diagnósticos; consultar con profesional").
-
-  3\. Medication Leaflet / Booklet Ingestion (Zero-Cost Vision):
-
-     \- Ingestion: User uploads a photo of a leaflet or pet vaccination card. The backend processes the file ephemerally in RAM (Buffer) and sends it to Gemini API via \`POST /api/ai/scan-leaflet\`.
-
-     \- Output: Returns structured JSON (\`name\`, \`dosage\`, \`frequency\`) to populate new tracking definitions. Persisting Base64 images in PostgreSQL is strictly prohibited.
-
-  4\. Clinical Natural-Language Summary & PDF Export:
-
-     \- Trigger: User clicks "Ver resumen / Exportar" in the summary rail. The backend collects active month logs and invokes Gemini via \`POST /api/ai/clinical-summary\`.
-
-     \- Delivery: Gemini returns an objective clinical summary (symptom counts, frequency peaks, observed trigger pairings). The frontend renders the report with a 1-click download as a styled PDF using \`jspdf\` and \`html2canvas\`.
-
-  5\. Guest Mode Persistence & Zero-Data-Loss Migration:
-
-     \- Demo Workflow: Unregistered users track events locally under \`@cuidat\_guest\_v1\`.
-
-     \- Conversion: Upon registration, the frontend sends the local payload to \`POST /api/auth/upgrade\`. The backend creates the user and inserts all profiles/logs within a single atomic PostgreSQL transaction (\`BEGIN ... COMMIT\`) before wiping local storage.
-
-&nbsp;
-
-&nbsp;
-
-&nbsp;
-
-\- Critical Capabilities: Multi-profile management, hybrid tactile interface (Drag & Drop on desktop / Tap-to-select on mobile), deterministic time-window correlation engine (12–48h), anonymous guest session persisted in localStorage, transactional user upgrade flow, and strict tenant isolation.
-
-\- Budget & Infrastructure Constraint: The system must be developed, run, and hosted under a strict €0 operational cost utilizing free-tier infrastructure and open-source packages.
-
-\---
-
-&nbsp;
-
-\#\# 2\. Design System, UI Tokens & Interaction Patterns
-
-&nbsp;
-
-\#\#\# Design Tokens (Tailwind CSS Extension)
-
-\- slate (\#496580): Primary brand token. Core typography, structural boundaries, active borders, and primary interactive CTAs.
-
-\- peach (\#FFDBBB): Warning & Symptom accent. Applied to symptom badges, alerts, and active severity states.
-
-\- sky (\#BADDFF): Informational surface. Secondary cards, modal containers, and selection outlines.
-
-\- mint (\#BAFFF5): Positive trigger & confirmation accent. Applied to triggers, completed doses, and correlation badges.
-
-\- tint (\#E6F4FE): Soft contextual backgrounds, secondary chips, and interactive hover states.
-
-\- canvas (\#FDFDFD): Clean base canvas and calendar day cells.
-
-&nbsp;
-
-\#\#\# Typography
-
-\- Primary Font Family: Nunito Sans, sans-serif.
-
-\- Mandatory Weights: 400 (Regular), 600 (SemiBold), 700 (Bold), 800 (ExtraBold), 900 (Black). Loaded via Google Fonts CDN in index.html.
-
-&nbsp;
-
-\#\#\# Workspace Layout (Desktop vs. Mobile)
-
-\- 3-Column Grid Desktop Layout (workspace):
-
-  \- Left Rail (232px): SidebarDock.vue housing toggleable tabs for Symptoms and Triggers / Food.
-
-  \- Center Stage (1fr flex): CalendarGrid.vue containing month navigation, weekday headers, and a native CSS Grid (grid-cols-7).
-
-  \- Right Rail (276px): MonthlyInsightsSummary.vue displaying monthly metrics, exploratory correlation cards ("Patrón a explorar"), and deep-link actions ("Ver coincidencias").
-
-\- Responsive Collapse (\< 900px): Single-column stacked layout. The summary rail drops below the primary grid or is accessible via navigation, and the dock shifts beneath the calendar.
-
-\- Filter Scope Disambiguation:
-
-  \- Top Filter Toolbar (FilterToolbar.vue): Restricts which log entries are rendered within calendar day cells (Show All, Symptoms Only, Triggers Only, Correlation Mode, or specific trigger chip).
-
-  \- Dock Tabs (SidebarDock.vue): Switches which palette of emoji tokens is available for dragging or tapping into the calendar.
-
-\- Interaction Contract (Hybrid Desktop/Mobile):
-
-  \- Desktop (\>= 768px): HTML5 Drag-and-Drop from dock items into targeted calendar day cells.
-
-  \- Mobile (\< 768px): Tap-to-select pattern. Tapping an emoji primes it in the dock; tapping a target calendar day places the event and opens the log modal, preventing mobile viewport scroll conflicts.
-
-&nbsp;
-
-\---
-
-&nbsp;
-
-\#\# 3\. Technology Stack & Workspace Architecture
-
-\- Monorepo Structure: Managed via npm workspaces from the root repository:
-
-  \- shared: Pure TypeScript domain models, Zod validation schemas, and deterministic business rules.
-
-  \- client: Frontend client built with Vue 3 (SFC script setup lang="ts"), Vite, Pinia, and Tailwind CSS.
-
-  \- server: Backend REST API built with Node.js, Express, TypeScript, Zod, and security middleware.
-
-\- Client Utilities: dayjs (date manipulation), lucide-vue-next (icons), @formkit/drag-and-drop (accessible DnD), dompurify (anti-XSS sanitization).
-
-\- Persistence & Cloud: PostgreSQL with UUID primary keys and date-range indexes. Deployed on zero-cost tiers (Neon.tech or Supabase Free).
-
-\- AI Integrations (Zero Cost): Google Gemini API (Google AI Studio Free Tier) via @google/genai utilizing strict JSON Structured Outputs (responseSchema). Base64 image storage in PostgreSQL is strictly prohibited; images are parsed ephemerally in server RAM buffers.
-
-&nbsp;
-
-\---
-
-&nbsp;
-
-\#\# 4\. Scaffolding & Directory Tree
-
-&nbsp;
-
-/root
-
-├── package.json (npm workspaces: \["shared", "client", "server"\])
-
-├── /shared
-
-│   ├── package.json
-
-│   └── src/
-
-│       ├── types.ts           \# Shared domain models (Profiles, Logs, Items)
-
-│       ├── schemas.ts         \# Runtime Zod validation schemas
-
-│       └── correlation.ts     \# Pure deterministic correlation algorithms
-
-├── /client
-
-│   ├── index.html             \# Google Fonts preconnect & root container
-
-│   ├── tailwind.config.js     \# Extended color palette & typography
-
-│   └── src/
-
-│       ├── components/
-
-│       │   ├── calendar/      \# CalendarGrid.vue, CalendarDayCell.vue
-
-│       │   ├── dock/          \# SidebarDock.vue, DraggableBadge.vue
-
-│       │   ├── summary/       \# MonthlyInsightsSummary.vue
-
-│       │   └── modals/        \# EventLogModal.vue (Create / Update / Delete)
-
-│       ├── composables/       \# useCalendar.ts, useInteraction.ts
-
-│       ├── stores/            \# useProfileStore.ts, useEventStore.ts, useAuthStore.ts
-
-│       └── views/             \# LandingView.vue, DashboardView.vue, SettingsView.vue
-
-├── /server
-
-│   └── src/
-
-│       ├── controllers/       \# Express HTTP controllers
-
-│       ├── middlewares/       \# AuthMiddleware, RateLimiter (express-rate-limit)
-
-│       ├── repositories/      \# Tenant-scoped PostgreSQL data access
-
-│       ├── services/          \# Business logic & Google Gemini AI service
-
-│       └── db/                \# SQL migration files and connection pooling
-
-└── /tests
-
-    ├── unit/                  \# Vitest specs for shared domain & stores
-
-    └── e2e/                   \# Playwright critical journey specs
-
-&nbsp;
-
-\---
-
-&nbsp;
-
-\#\# 5\. Environment Configuration (.env.example)
-
-&nbsp;
-
-\# Frontend (.env)
-
-VITE\_API\_URL=http://localhost:3000
-
-&nbsp;
-
-\# Backend (.env)
-
+---
+
+## 1. Product Vision & Operational Constraints
+
+CuidaT is a reactive web application designed for visual tracking, deterministic correlation, and management of symptoms, potential triggers, and medication schedules across pets, children, and adults.
+
+- Core Use Cases & Behavioral Contracts:
+  1. Quick Event Logging, Editing & Deletion:
+     - Creation: User drags a badge onto a calendar day or taps it on mobile, triggering `EventLogModal.vue`.
+     - Custom Tracking Metrics: Depending on the item's definition, the user sets approximate time, selects intensity (1: Mild, 2: Moderate, 3: Severe), logs duration in minutes, types sanitized notes (max 300 chars), and saves.
+     - Modification / Removal: Clicking an existing event dot opens the modal in edit mode with prefilled values. The modal displays an explicit secondary destructive action ("Eliminar registro").
+  2. Deterministic Correlation Discovery & Pattern Thresholds:
+     - Computation: The client or server runs `detectCorrelations()` matching every symptom against prior triggers/medications occurring within a dynamically configured window (`0 <= diffHours <= correlation_window_hours`, strictly configurable per calendar: 2, 6, 12, 24, 36, or 48h). 
+     - Visualization & Thresholds: Pairings are evaluated by occurrence frequency in the active period:
+       - 3 to 6 occurrences: Flagged as "Vigilar posible patrón".
+       - 7 or more occurrences: Flagged as "Patrón detectado".
+  3. Parametric Analytics & Summaries:
+     - Trigger: User clicks "Ver resúmenes" to open a parametric dashboard.
+     - Configuration: Allows custom date-range selection and cross-filtering by specific subsets of triggers and symptoms to isolate specific pattern thresholds dynamically.
+  4. Guest Mode Governance & Zero-Data-Loss Migration:
+     - Demo Workflow: Unregistered users track events locally under `@cuidat_guest_v1`.
+     - Guest Limitations: Strictly restricted to 1 calendar profile. Calendar grid navigation is restricted to present and past months. Multi-month view is capped at a maximum of 2 simultaneous months.
+     - Explicit Consent Migration (GDPR Art. 9): Registration includes a reactive switch: "Conservar y migrar datos locales existentes a mi cuenta" (enabled by default). If unchecked, the account is provisioned clean without transferring local data into PostgreSQL.
+  5. Day Summary Drill-Down (Consultation vs. Normal Mode):
+     - Trigger: Clicking on an empty area of a calendar day cell opens `DaySummaryModal.vue`, rendering a chronological breakdown of that date's logged events.
+     - Mode Constraint: In Normal Mode, each row allows editing/deleting. In Consultation Mode (read-only mode for medical visits), editing actions are suppressed.
+  6. Calendar Profile Lifecycle Management:
+     - Creation: Users can create dedicated profiles with distinct names, avatar emojis, color themes, and custom correlation windows.
+     - Modification: Existing profiles can be edited via `ProfileEditModal.vue`.
+     - Deletion: Profiles can be deleted via `DELETE /api/profiles/:id`.
+     - Non-Zero Profile Invariant: The UI and backend strictly enforce that a user's final remaining profile cannot be deleted (`profiles.length > 1` required for deletion).
+  7. User Profile Lifecycle, Session State & GDPR Data Rights:
+     - GDPR Portability (Art. 20): Authenticated users can invoke "Descargar mis datos" to trigger an immediate client-side download of their dataset as a JSON file.
+     - GDPR Right to be Forgotten (Art. 17): Permanent account erasure via `DELETE /api/auth/account`. Requires typing "ELIMINAR" in a confirmation modal. Executes an atomic cascade deletion.
+  8. Future Data Prevention (Clinical Integrity):
+     - UI/API Block: The system strictly prevents logging symptoms, triggers, or medications on future dates.
+     - Interface: Navigation to future months is blocked. Days after the current date within the current month are visually disabled. Attempting to interact with them triggers a warning Toast explaining the restriction.
+  9. Historical Immutability (Soft Delete) & Scalability:
+     - Catalog: Editing an item's configuration (e.g., switching from intensity tracking to duration tracking) does not alter the original record. A soft delete is applied, and a new record is created and linked via `parent_id`, ensuring the historical `DaySummaryModal.vue` does not break.
+     - Temporal Pagination: The client defaults to fetching only the last 3 months of `health_event_logs` to ensure optimal main thread performance in Vue.
+  10. System Resilience & Error Handling:
+      - Global Error Boundary: The Vue application implements a global error handler to intercept runtime exceptions (e.g., unexpected correlation engine failures or rendering issues) and display a graceful `FallbackError.vue` UI, ensuring the application never crashes to a blank screen.
+
+- Dynamic Dock & Catalog Management:
+  - Configuration: When creating items, users can toggle `track_intensity` and `track_duration` booleans to define what data to collect for that specific item.
+  - Deletion Guard: Deleting an item definition referenced by existing logs prompts a cascading deletion warning.
+
+---
+
+## 2. Design System, UI Tokens & Interaction Patterns
+
+### Design Tokens (Tailwind CSS Extension)
+- slate (#496580): Primary brand token. Core typography, structural boundaries, and active borders.
+- peach (#FFDBBB): Warning & Symptom accent. Applied to symptoms.
+- sky (#BADDFF): Informational surface. Applied to medication.
+- mint (#BAFFF5): Positive trigger & confirmation accent. Applied to triggers/foods.
+- tint (#E6F4FE): Soft contextual backgrounds.
+- canvas (#FDFDFD): Clean base canvas and calendar day cells.
+
+### Quick Jump Navigator & View Density
+- Quick Jump Navigator (`DateNavigatorPopover.vue`): The month label in the header acts as a popover trigger with a year stepper and 12-month grid.
+- Multi-Month Density Selector: Segmented control (`1M | 2M | 3M`). Allows stacked consecutive months to visualize long-term trends without hiding any event rows.
+
+### Workspace Layout (Desktop vs. Mobile)
+- 3-Column Grid Desktop Layout: Left Rail (232px) for Dock, Center Stage (1fr flex) for CalendarGrid, Right Rail (276px) for Insights and Pattern Thresholds.
+- Responsive Collapse (< 900px): Single-column stacked layout.
+- Interaction Contract: Desktop (>= 768px) supports HTML5 Drag-and-Drop. Mobile (< 768px) relies strictly on Tap-to-select.
+
+---
+
+## 3. Technology Stack & Workspace Architecture
+- Monorepo Structure: Managed via npm workspaces (shared, client, server).
+- Client: Vue 3 (Composition API), Vite, Pinia, Tailwind CSS, dayjs, lucide-vue-next, dompurify.
+- Server: Node.js, Express, TypeScript, Zod, bcrypt, jsonwebtoken.
+- Persistence: PostgreSQL (Neon) with strict multi-tenant isolation via composite keys.
+- CI/CD & Security: GitHub Actions, Husky (Pre-commit hooks), Snyk (Dependency scanning).
+- Observability: Sentry (Error tracking and performance monitoring).
+- Containerization: Docker & Docker Compose (Local database and backend containerization).
+
+---
+
+## 4. Environment Configuration (.env.example)
+
+# Frontend (.env)
+VITE_API_URL=http://localhost:3000
+
+# Backend (.env)
 PORT=3000
+DATABASE_URL=postgresql://cuidat_user:secure_password@localhost:5432/cuidat_db?sslmode=require
+JWT_SECRET=super_secret_session_key_min_32_chars
 
-DATABASE\_URL=postgresql://cuidat\_user:secure\_password@localhost:5432/cuidat\_db
+---
 
-JWT\_SECRET=super\_secret\_session\_key\_min\_32\_chars
-
-GEMINI\_API\_KEY=AIzaSy...
-
-&nbsp;
-
-\---
-
-&nbsp;
-
-\#\# 6\. Relational Database Schema (PostgreSQL DDL)
-
-&nbsp;
+## 5. Relational Database Schema (PostgreSQL DDL)
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
-&nbsp;
-
 CREATE TABLE users (
-
-    id UUID PRIMARY KEY DEFAULT uuid\_generate\_v4(),
-
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email VARCHAR(255) UNIQUE,
-
-    is\_anonymous BOOLEAN DEFAULT FALSE,
-
-    created\_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-
+    password_hash VARCHAR(255),
+    is_anonymous BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-&nbsp;
-
-CREATE TABLE calendar\_profiles (
-
-    id UUID PRIMARY KEY DEFAULT uuid\_generate\_v4(),
-
-    user\_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-
+CREATE TABLE calendar_profiles (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name VARCHAR(100) NOT NULL,
-
-    profile\_type VARCHAR(50) NOT NULL, \-- 'pet', 'child', 'adult', 'custom'
-
-    avatar\_icon VARCHAR(50) DEFAULT '👤',
-
-    created\_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-
+    profile_type VARCHAR(50) NOT NULL,
+    avatar_icon VARCHAR(50) DEFAULT '👤',
+    color_theme VARCHAR(50) DEFAULT 'slate',
+    correlation_window_hours SMALLINT DEFAULT 48 CHECK (correlation_window_hours IN (2, 6, 12, 24, 36, 48)),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-&nbsp;
+CREATE INDEX idx_profiles_user ON calendar_profiles(user_id);
 
-CREATE TABLE health\_item\_definitions (
-
-    id UUID PRIMARY KEY DEFAULT uuid\_generate\_v4(),
-
-    calendar\_id UUID NOT NULL REFERENCES calendar\_profiles(id) ON DELETE CASCADE,
-
+CREATE TABLE health_item_definitions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    calendar_id UUID NOT NULL REFERENCES calendar_profiles(id) ON DELETE CASCADE,
+    parent_id UUID REFERENCES health_item_definitions(id) ON DELETE SET NULL, -- Para agrupar históricos editados
     name VARCHAR(100) NOT NULL,
-
     emoji VARCHAR(10) NOT NULL,
-
-    category VARCHAR(50) NOT NULL, \-- 'symptom', 'trigger', 'medication'
-
-    is\_active BOOLEAN DEFAULT TRUE,
-
-    created\_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-
+    category VARCHAR(50) NOT NULL,
+    track_intensity BOOLEAN DEFAULT TRUE,
+    track_duration BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE, -- Soporte para Soft Delete
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT uq_item_calendar UNIQUE (id, calendar_id)
 );
 
-&nbsp;
+CREATE INDEX idx_items_calendar_active ON health_item_definitions(calendar_id, is_active);
 
-CREATE TABLE health\_event\_logs (
-
-    id UUID PRIMARY KEY DEFAULT uuid\_generate\_v4(),
-
-    calendar\_id UUID NOT NULL REFERENCES calendar\_profiles(id) ON DELETE CASCADE,
-
-    item\_definition\_id UUID NOT NULL REFERENCES health\_item\_definitions(id) ON DELETE RESTRICT,
-
-    logged\_at TIMESTAMP WITH TIME ZONE NOT NULL,
-
-    intensity SMALLINT NOT NULL CHECK (intensity BETWEEN 1 AND 3), \-- 1: Mild, 2: Moderate, 3: Severe
-
+CREATE TABLE health_event_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    calendar_id UUID NOT NULL REFERENCES calendar_profiles(id) ON DELETE CASCADE,
+    item_definition_id UUID NOT NULL,
+    logged_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    intensity SMALLINT CHECK (intensity BETWEEN 1 AND 3), 
+    duration_minutes INTEGER,
     notes VARCHAR(300),
-
-    created\_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT fk_logs_item_calendar FOREIGN KEY (item_definition_id, calendar_id) 
+        REFERENCES health_item_definitions(id, calendar_id) ON DELETE CASCADE
 );
 
-&nbsp;
+CREATE INDEX idx_logs_calendar_date ON health_event_logs(calendar_id, logged_at);
 
-CREATE INDEX idx\_logs\_calendar\_date ON health\_event\_logs(calendar\_id, logged\_at);
+---
 
-&nbsp;
-
-\---
-
-&nbsp;
-
-\#\# 7\. Deterministic Correlation Algorithm
-
+## 6. Deterministic Correlation Algorithm & Thresholds
 File: shared/src/correlation.ts
 
-&nbsp;
-
 export interface HealthEvent {
-
   id: string;
-
+  itemDefinitionId: string;
   loggedAt: string; // ISO 8601 UTC
-
-  \[key: string\]: unknown;
-
 }
 
-&nbsp;
-
-export interface CorrelationMatch {
-
-  triggerEvent: HealthEvent;
-
-  symptomEvent: HealthEvent;
-
-  deltaHours: number;
-
+export interface PatternThreshold {
+  triggerId: string;
+  symptomId: string;
+  occurrences: number;
+  category: 'Vigilar posible patrón' | 'Patrón detectado';
 }
 
-&nbsp;
+// The algorithm must:
+// 1. Iterate over triggers/medications and symptoms.
+// 2. Validate deltaHours (0 <= deltaHours <= calendar.correlation_window_hours).
+// 3. Group valid matches by unique pair (triggerId - symptomId).
+// 4. Count occurrences per pair.
+// 5. Categorize: 3 to 6 occurrences -> 'Vigilar posible patrón'. >= 7 occurrences -> 'Patrón detectado'.
 
-export function detectCorrelations(
+---
 
-  triggers: HealthEvent\[\],
+## 7. Multi-Tenancy, Security & Governance
 
-  symptoms: HealthEvent\[\],
+- Timezone Governance: All timestamps are stored in UTC (ISO 8601 with `Z`). Local timezone conversion occurs strictly at the presentation layer via `dayjs`.
+- Repository-Level Isolation: All operations verify user identity through relational joins:
+  SELECT l.* FROM health_event_logs l
+  JOIN calendar_profiles p ON l.calendar_id = p.id
+  WHERE p.user_id = $current_user_id AND l.calendar_id = $calendar_id;
+- Input Sanitization: Free-text inputs (notes) are sanitized using `DOMPurify.sanitize()`.
+- GDPR Compliance: Client-side JSON export for Art. 20. Atomic cascade deletion for Art. 17.
 
-  maxWindowHours \= 48
+---
 
-): CorrelationMatch\[\] {
+## 8. Architectural Decision Records (ADRs)
 
-  const matches: CorrelationMatch\[\] \= \[\];
-
-&nbsp;
-
-  for (const symptom of symptoms) {
-
-    const symptomTime \= new Date(symptom.loggedAt).getTime();
-
-&nbsp;
-
-    for (const trigger of triggers) {
-
-      const triggerTime \= new Date(trigger.loggedAt).getTime();
-
-      const diffMillis \= symptomTime \- triggerTime;
-
-      const diffHours \= diffMillis / (1000 \* 60 \* 60);
-
-&nbsp;
-
-      // The trigger must precede the symptom within the maximum allowable window
-
-      if (diffHours \>= 0 && diffHours \<= maxWindowHours) {
-
-        matches.push({
-
-          triggerEvent: trigger,
-
-          symptomEvent: symptom,
-
-          deltaHours: Math.round(diffHours \* 10\) / 10
-
-        });
-
-      }
-
-    }
-
-  }
-
-&nbsp;
-
-  return matches.sort((a, b) \=\> a.deltaHours \- b.deltaHours);
-
-}
-
-&nbsp;
-
-\---
-
-&nbsp;
-
-\#\# 8\. Multi-Tenancy, Security & Guest Migration
-
-\- Timezone Governance: All event timestamps (\`logged\_at\`) must be transmitted and stored strictly in UTC (ISO 8601 with \`Z\` suffix). Local timezone conversion occurs strictly at the presentation layer via \`dayjs\`.
-
-\- Repository-Level Isolation: All database reads, updates, and deletes must explicitly bind the authenticated user's ID via joins or ownership clauses:
-
-  SELECT l.\* FROM health\_event\_logs l
-
-  JOIN calendar\_profiles p ON l.calendar\_id \= p.id
-
-  WHERE p.user\_id \= $current\_user\_id AND l.calendar\_id \= $calendar\_id;
-
-\- Rate-Limiting: AI endpoints (/api/ai/\*) must enforce an IP-based rate limit via express-rate-limit (maximum 5 requests per hour) to safeguard external API quotas.
-
-\- Input Sanitization: Free-text inputs (notes) must be sanitized using DOMPurify.sanitize() prior to client storage or DOM insertion.
-
-\- Standardized API Response Contract:
-
-  \- Success: { "success": true, "data": T }
-
-  \- Error: { "success": false, "code": "ERROR\_CODE", "message": "Human-readable context" }
-
-\- System Health Monitoring: The backend must expose an unauthenticated \`GET /api/health\` endpoint returning \`{ "status": "ok", "timestamp": string, "uptime": number }\` for cloud orchestrator liveness probes.
-
-\- Guest Storage & Account Migration: Unregistered demo data resides under the @cuidat\_guest\_v1 localStorage key. POST /api/auth/upgrade moves the local payload into PostgreSQL within a single atomic database transaction (BEGIN ... COMMIT).
-
-\- Migration Governance: Database changes must strictly follow ordered SQL migration files (\`server/src/db/migrations/00X\_name.sql\`) executed sequentially via an idempotent migration runner tracking an \`applied\_migrations\` metadata table.
-
-\---
-
-&nbsp;
-
-\#\# 9\. Zero-Cost AI Extraction & Summaries
-
-\- SDK: Official @google/genai library connecting to Google AI Studio.
-
-\- Buffer-Only Processing: Vision requests parsing medication packaging or veterinary booklets accept multipart files into server memory buffers. Persisting images in PostgreSQL is forbidden.
-
-\- Strict Structured Outputs: All AI endpoints require strict Zod-compatible schema validation:
-
-  config: {
-
-    responseMimeType: "application/json",
-
-    responseSchema: clinicalSummaryJsonSchema
-
-  }
-
-&nbsp;
-
-&nbsp;
+- ADR-001: Deterministic Math Engine for Correlation
+  - Decision: Pure deterministic algorithm with 100% unit test coverage based on dynamically configured time windows per profile.
+- ADR-002: Client-Side GDPR Portability & Atomic Right to Be Forgotten
+  - Decision: Client-side JSON export for Art. 20; transactional cascading delete for Art. 17.
+- ADR-003: Non-Zero Calendar Profile Invariant
+  - Decision: Enforce that profile deletion is disabled if `profiles.length <= 1`.
+- ADR-004: Zero Hidden Clinical Data via Dynamic Cell Expansion
+  - Decision: Day cells dynamically expand vertically (`min-h-[110px] h-full`). Conventional truncation ("+X más") is prohibited.
+- ADR-005: Composite Keys for Multi-Tenant Integrity
+  - Decision: Enforce `UNIQUE (id, calendar_id)` on items and a composite foreign key on logs to strictly prevent cross-calendar data corruption.
+- ADR-006: Historical Immutability via Soft Delete and Parent Grouping
+  - Decision: Edits to items that alter their data collection (intensity/duration) will mark the original as inactive and create a new one with a `parent_id`. This ensures the visual integrity of historical records and allows analytics to group the item's entire trajectory.
+- ADR-007: PWA Offline-First Strategy and Rate Limiting
+  - Decision: Implementation of a mutation queue in IndexedDB for offline operability (Background Sync API). At the infrastructure level, deployment of `express-rate-limit` with strict rules on `/api/auth/*` to prevent brute-force attacks.
+- ADR-008: Mandatory E2E Coverage for GDPR Destructive Workflows
+  - Decision: Critical privacy flows, specifically the Art. 17 right to be forgotten (account deletion), must be strictly covered by Playwright E2E tests to ensure destructive operations function flawlessly and client state is completely purged.
+- ADR-009: Global Error Boundary
+  - Decision: Implement Vue's `app.config.errorHandler` coupled with a fallback component to intercept uncaught exceptions, maintaining a robust and trustworthy user experience in a health-tracking context.
+  - ADR-010: Local Infrastructure via Docker
+  - Decision: Utilize `docker-compose.yml` to provision the local PostgreSQL database and containerize the Express backend (`Dockerfile`) to demonstrate infrastructure-as-code and container orchestration competencies.
+- ADR-011: Strict Quality Gates via Husky
+  - Decision: Implement Husky pre-commit hooks to strictly enforce `tsc -b` (type checking) and Vitest before allowing code commits, preventing broken code from reaching the repository.
+- ADR-012: Full-Stack Observability via Sentry
+  - Decision: Integrate Sentry SDKs in both Vue (client) and Express (server) to trace unhandled exceptions, monitor release health, and demonstrate production-readiness.
