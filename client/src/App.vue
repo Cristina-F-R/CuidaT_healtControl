@@ -1,27 +1,32 @@
 <script setup lang="ts">
+import { useErrorBoundary } from './application/composables/useErrorBoundary';
+import CalendarGrid from './presentation/components/calendar/CalendarGrid.vue';
+import SidebarDock from './presentation/components/dock/SidebarDock.vue';
+import AppToaster from './presentation/components/feedback/AppToaster.vue';
+import FallbackError from './presentation/components/feedback/FallbackError.vue';
+import FilterBar from './presentation/components/filters/FilterBar.vue';
+import MonthlyInsightsSummary from './presentation/components/insights/MonthlyInsightsSummary.vue';
+import AppHeader from './presentation/components/layout/AppHeader.vue';
+
+const { criticalError } = useErrorBoundary();
 </script>
 
 <template>
-  <main class="min-h-screen bg-canvas p-8 flex flex-col items-center justify-center gap-6">
-    <div class="bg-tint p-6 rounded-2xl border border-slate shadow-sm max-w-md w-full text-center">
-      <h1 class="text-2xl font-extrabold text-slate mb-2">
-        CuidaT - Tokens Activos
-      </h1>
-      <p class="text-slate text-sm mb-4">
-        Verificación de paleta personalizada en Tailwind v3.
-      </p>
-
-      <div class="flex flex-wrap gap-2 justify-center">
-        <span class="px-3 py-1 bg-peach text-slate font-semibold text-xs rounded-full border border-slate">
-          peach: Síntoma
-        </span>
-        <span class="px-3 py-1 bg-mint text-slate font-semibold text-xs rounded-full border border-slate">
-          mint: Confirmado
-        </span>
-        <span class="px-3 py-1 bg-sky text-slate font-semibold text-xs rounded-full border border-slate">
-          sky: Info
-        </span>
+  <FallbackError v-if="criticalError" />
+  <div
+    v-else
+    class="min-h-screen"
+  >
+    <AppHeader />
+    <main class="mx-auto max-w-[1440px] px-4 pb-24 lg:px-8">
+      <FilterBar />
+      <!-- 3 columns from lg (1024px): dock 232px, calendar, insights 276px. Single column below. -->
+      <div class="grid gap-4 lg:grid-cols-[232px_minmax(0,1fr)_276px] lg:items-start lg:gap-6">
+        <SidebarDock />
+        <CalendarGrid />
+        <MonthlyInsightsSummary />
       </div>
-    </div>
-  </main>
+    </main>
+  </div>
+  <AppToaster />
 </template>

@@ -1,14 +1,15 @@
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
+import { fileURLToPath, URL } from 'node:url';
+import vue from '@vitejs/plugin-vue';
+import { defineConfig } from 'vite';
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [vue()],
-  server: {
-    host: '127.0.0.1',
-    port: 5173,
-    hmr: {
-      host: '127.0.0.1',
+  resolve: {
+    alias: {
+      // Bundle the shared kernel from source, so it does not need rebuilding while developing.
+      // Type checking still uses its declarations (project reference in tsconfig.app.json).
+      '@cuidat/shared': fileURLToPath(new URL('../shared/src/index.ts', import.meta.url)),
     },
   },
-})
+});

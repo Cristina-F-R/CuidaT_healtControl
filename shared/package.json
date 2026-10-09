@@ -1,12 +1,18 @@
 {
-  "name": "shared",
+  "name": "@cuidat/shared",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc -b",
+    "typecheck": "tsc -b"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
+  "type": "module",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "private": true
 }
