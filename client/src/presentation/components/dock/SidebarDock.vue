@@ -2,11 +2,14 @@
 import { storeToRefs } from 'pinia';
 import { computed, onBeforeUnmount, onMounted } from 'vue';
 import { useInteraction } from '../../../application/composables/useInteraction';
+import { useOverlays } from '../../../application/composables/useOverlays';
 import { useItemDefinitionStore } from '../../../application/stores/useItemDefinitionStore';
+import { FOCUS_RING } from '../../categoryStyles';
 import DockItemButton from './DockItemButton.vue';
 
-const { symptoms, triggersAndMedication } = storeToRefs(useItemDefinitionStore());
+const { activeItems, symptoms, triggersAndMedication } = storeToRefs(useItemDefinitionStore());
 const { canDrag, selectedItemId, clearSelection } = useInteraction();
+const { openOverlay } = useOverlays();
 
 const groups = computed(() => [
   { id: 'dock-symptoms', title: 'Síntomas', items: symptoms.value },
@@ -45,6 +48,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
         {{ hint }}
       </p>
     </div>
+    <p
+      v-if="activeItems.length === 0"
+      class="text-sm text-slate-800"
+    >
+      No hay ítems activos. Crea uno o restaura un archivado.
+    </p>
+    <button
+      type="button"
+      class="self-start px-3 py-1.5 text-xs font-bold text-slate-800 border border-slate rounded-full transition-colors hover:bg-tint"
+      :class="FOCUS_RING"
+      @click="openOverlay({ kind: 'itemManager' })"
+    >
+      Gestionar ítems
+    </button>
     <section
       v-for="group in groups"
       :key="group.id"

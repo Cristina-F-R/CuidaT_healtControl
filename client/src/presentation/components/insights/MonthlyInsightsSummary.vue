@@ -4,6 +4,7 @@ import type { ItemCategory } from '@cuidat/shared';
 import { storeToRefs } from 'pinia';
 import { computed } from 'vue';
 import { useCalendar } from '../../../application/composables/useCalendar';
+import { usePatterns } from '../../../application/composables/usePatterns';
 import { useEventStore } from '../../../application/stores/useEventStore';
 import { useItemDefinitionStore } from '../../../application/stores/useItemDefinitionStore';
 import { useProfileStore } from '../../../application/stores/useProfileStore';
@@ -13,6 +14,7 @@ const { activeMonthKey, monthName } = useCalendar();
 const { logsByDay } = storeToRefs(useEventStore());
 const itemStore = useItemDefinitionStore();
 const { activeProfile } = storeToRefs(useProfileStore());
+const { watchPatterns, detectedPatterns } = usePatterns();
 
 const totals = computed(() => {
   const counts: Record<ItemCategory, number> = { symptom: 0, trigger: 0, medication: 0 };
@@ -76,6 +78,7 @@ const DETECTED_THRESHOLD = `${PATTERN_DETECTED_MIN_OCCURRENCES} o más coinciden
       :threshold="WATCH_THRESHOLD"
       empty-text="Todavía no hay coincidencias suficientes."
       surface="bg-tint"
+      :patterns="watchPatterns"
     />
     <PatternSection
       heading-id="pattern-detected"
@@ -83,6 +86,7 @@ const DETECTED_THRESHOLD = `${PATTERN_DETECTED_MIN_OCCURRENCES} o más coinciden
       :threshold="DETECTED_THRESHOLD"
       empty-text="Ningún patrón detectado todavía."
       surface="bg-mint/40"
+      :patterns="detectedPatterns"
     />
     <p class="text-xs text-slate">
       Una coincidencia no confirma una causa. Puede ser útil comentarla con un profesional.

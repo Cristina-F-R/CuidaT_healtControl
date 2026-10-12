@@ -9,7 +9,7 @@ function stripQuery(url: string | undefined): string | undefined {
   return url?.split('?')[0];
 }
 
-function scrubEvent(event: ErrorEvent): ErrorEvent {
+export function scrubEvent(event: ErrorEvent): ErrorEvent {
   if (event.request) {
     event.request = { url: stripQuery(event.request.url), method: event.request.method };
   }
@@ -18,8 +18,10 @@ function scrubEvent(event: ErrorEvent): ErrorEvent {
   return event;
 }
 
-function scrubBreadcrumb(breadcrumb: Breadcrumb): Breadcrumb | null {
-  if (breadcrumb.category === 'console') {
+export function scrubBreadcrumb(breadcrumb: Breadcrumb): Breadcrumb | null {
+  // Console output and UI breadcrumbs go out: UI breadcrumbs describe clicked elements by their
+  // aria-label, which holds item names, times and dates (ADR-012, OWASP A09).
+  if (breadcrumb.category === 'console' || breadcrumb.category?.startsWith('ui')) {
     return null;
   }
   if (breadcrumb.category === 'fetch' || breadcrumb.category === 'xhr' || breadcrumb.category === 'navigation') {

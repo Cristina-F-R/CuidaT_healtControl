@@ -1,0 +1,91 @@
+<script setup lang="ts">
+import { PATTERN_DETECTED_MIN_OCCURRENCES, PATTERN_WATCH_MIN_OCCURRENCES } from '@cuidat/shared';
+import type { ItemCategory } from '@cuidat/shared';
+import { storeToRefs } from 'pinia';
+import { computed } from 'vue';
+import { useCalendar } from '../../../application/composables/useCalendar';
+import { useEventStore } from '../../../application/stores/useEventStore';
+import { useItemDefinitionStore } from '../../../application/stores/useItemDefinitionStore';
+import { useProfileStore } from '../../../application/stores/useProfileStore';
+import PatternSection from './PatternSection.vue';
+
+const { activeMonthKey, monthName } = useCalendar();
+const { logsByDay } = storeToRefs(useEventStore());
+const itemStore = useItemDefinitionStore();
+const { activeProfile } = storeToRefs(useProfileStore());
+
+const totals = computed(() => {
+  const counts: Record<ItemCategory, number> = { symptom: 0, trigger: 0, medication: 0 };
+  for (const [dayKey, logs] of logsByDay.value) {
+    if (!dayKey.startsWith(`${activeMonthKey.value}-`)) {
+      continue;
+    }
+    for (const log of logs) {
+      const item = itemStore.findById(log.itemDefinitionId);
+      if (item) {
+        counts[item.category] += 1;
+      }
+    }
+  }
+  return counts;
+});
+
+const stats = computed(() => [
+  { label: 'síntomas registrados', value: totals.value.symptom },
+  { label: 'triggers añadidos', value: totals.value.trigger },
+  { label: 'tomas de medicación', value: totals.value.medication },
+]);
+
+const WATCH_THRESHOLD = `Entre ${PATTERN_WATCH_MIN_OCCURRENCES} y ${PATTERN_DETECTED_MIN_OCCURRENCES - 1} coincidencias`;
+const DETECTED_THRESHOLD = `${PATTERN_DETECTED_MIN_OCCURRENCES} o más coincidencias`;
+</script>
+
+<template>
+  <aside
+    aria-labelledby="insights-title"
+    class="flex flex-col gap-5 p-4 bg-canvas rounded-2xl border border-slate-100 shadow-sm lg:p-6"
+  >
+    <div>
+      <p class="text-xs font-extrabold uppercase tracking-widest text-slate">
+        Resumen de {{ monthName }}
+      </p>
+      <h2
+        id="insights-title"
+        class="text-lg font-semibold text-slate-800"
+      >
+        La historia de {{ activeProfile.name }}
+      </h2>
+    </div>
+    <dl class="grid grid-cols-3 gap-3 lg:grid-cols-1">
+      <div
+        v-for="stat in stats"
+        :key="stat.label"
+        class="flex flex-col-reverse"
+      >
+        <dt class="text-sm text-slate">
+          {{ stat.label }}
+        </dt>
+        <dd class="text-2xl font-extrabold text-slate-800">
+          {{ stat.value }}
+        </dd>
+      </div>
+    </dl>
+    <PatternSection
+      heading-id="pattern-watch"
+      title="Vigilar posible patrón"
+      :threshold="WATCH_THRESHOLD"
+      empty-text="Todavía no hay coincidencias suficientes."
+      surface="bg-tint"
+    />
+    <PatternSection
+      heading-id="pattern-detected"
+      title="Patrón detectado"
+      :threshold="DETECTED_THRESHOLD"
+      empty-text="Ningún patrón detectado todavía."
+      surface="bg-mint/40"
+    />
+    <p class="text-xs text-slate">
+      Una coincidencia no confirma una causa. Puede ser útil comentarla con un profesional.
+    </p>
+  </aside>
+</template>

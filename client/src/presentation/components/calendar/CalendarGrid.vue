@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import dayjs from 'dayjs';
 import { storeToRefs } from 'pinia';
 import { useCalendar } from '../../../application/composables/useCalendar';
 import { useDayEntries } from '../../../application/composables/useDayEntries';
 import type { DayEntry } from '../../../application/composables/useDayEntries';
 import { useInteraction } from '../../../application/composables/useInteraction';
+import { useOverlays } from '../../../application/composables/useOverlays';
 import { usePlacement } from '../../../application/composables/usePlacement';
-import { useToast } from '../../../application/composables/useToast';
 import { useProfileStore } from '../../../application/stores/useProfileStore';
 import CalendarDayCell from './CalendarDayCell.vue';
 import CalendarHeader from './CalendarHeader.vue';
@@ -17,7 +16,7 @@ const { slots } = useCalendar();
 const { entriesByDay } = useDayEntries();
 const { draggingItemId, isDragging, endDrag } = useInteraction();
 const { placeItem, activateDay } = usePlacement();
-const { showToast } = useToast();
+const { openOverlay } = useOverlays();
 const { activeProfile } = storeToRefs(useProfileStore());
 
 function onDropItem(dayKey: string): void {
@@ -27,10 +26,9 @@ function onDropItem(dayKey: string): void {
   endDrag();
 }
 
+/** Clicking a dot edits that log in place (TECH_SPEC.md use case 1). */
 function onOpenEvent(entry: DayEntry): void {
-  // Phase 2 opens EventLogModal.vue in edit mode here.
-  const when = dayjs(entry.log.loggedAt).format('D [de] MMMM, HH:mm');
-  showToast(`${entry.item.emoji} ${entry.item.name} · ${when}`);
+  openOverlay({ kind: 'eventLog', mode: 'edit', logId: entry.log.id });
 }
 </script>
 

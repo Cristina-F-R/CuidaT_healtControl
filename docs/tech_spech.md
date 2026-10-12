@@ -142,7 +142,7 @@ DATABASE_URL=postgresql://USER:PASSWORD@ep-xxxx-pooler.REGION.aws.neon.tech/neon
 # Neon direct connection: used by db:migrate and db:reset
 DATABASE_URL_DIRECT=postgresql://USER:PASSWORD@ep-xxxx.REGION.aws.neon.tech/neondb?sslmode=require
 JWT_SECRET=replace_with_at_least_32_random_characters
-JWT_EXPIRES_IN=7d
+JWT_EXPIRES_IN=24h
 AUTH_RATE_LIMIT_MAX=20
 SENTRY_DSN=
 # Only true for the one-time reset of main, or on dev/test branches. Back to false right after.
@@ -152,7 +152,14 @@ ALLOW_DB_RESET=false
 
 ## 5. Relational Database Schema (PostgreSQL DDL)
 
-Single source: `docs/neon/001_init.sql` (copied to `server/src/db/migrations/001_init.sql`); keep both identical. It was validated against PostgreSQL 16 with `docs/neon/smoke_test.sql`. Identifiers of profiles, items and logs are generated client-side (`crypto.randomUUID()`) so offline writes are idempotent; the guest import remaps ids on the server. Invariants enforced by the schema: lowercase unique email; non-empty free-text `profile_type`, valid `category`, windows, intensity and duration; composite foreign keys that prevent cross-calendar references (items, parent, root, logs); one live version per item lineage; lineage rule (original <=> no parent); cascade deletes (user -> profiles -> items/logs; root item -> all its versions and logs).
+Single source: `docs/neon/001_init.sql` (copied to `server/src/db/migrations/001_init.sql`); keep both identical. It was validated against PostgreSQL 16 with `docs/neon/smoke_test.sql`. Identifiers of profiles, items and logs are generated client-side (`crypto.randomUUID()`) so offline writes are idempotent; the guest import remaps ids on the server. Invariants enforced by the schema: lowercase unique email; non-empty free-text `profile_type`, valid `category`, windows, intensity and duration; non-blank notes (max 300); composite foreign keys that prevent cross-calendar references (items, parent, root, logs); one live version per item lineage; lineage rule (original <=> no parent); cascade deletes (user -> profiles -> items/logs; root item -> all its versions and logs).
+
+Rules that a CHECK cannot express are enforced by triggers in the same migration (the server validates them first, these are the last barrier):
+- `check_log_metrics`: a log stores intensity only if its item version tracks intensity, and duration only if it tracks duration.
+- `check_log_not_future`: `logged_at` may not be later than `now() + 5 minutes` on insert, or when `logged_at` changes (edits of old logs are not blocked).
+- `check_item_update`: `id`, `calendar_id`, `root_id`, `parent_id`, `category`, `track_intensity`, `track_duration` and `created_at` are immutable. Changing the tracking shape means: mark the live version `superseded`, then insert the new version (in that order, because of the partial unique index). A `superseded` version is terminal.
+
+Not enforced by the schema, on purpose: archived or superseded items refusing new logs. Online creation is refused by the API. A log that arrives from the sync queue is accepted whatever the status of its item, because the user recorded it while the item was valid (ADR-007).
 
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -211,7 +218,7 @@ CREATE TABLE health_event_logs (
     logged_at TIMESTAMPTZ NOT NULL,
     intensity SMALLINT CHECK (intensity BETWEEN 1 AND 3),
     duration_minutes INTEGER CHECK (duration_minutes BETWEEN 1 AND 1440),
-    notes VARCHAR(300),
+    notes VARCHAR(300) CHECK (notes IS NULL OR length(btrim(notes)) > 0),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- last-write-wins en la sincronización offline
     CONSTRAINT fk_logs_item_calendar FOREIGN KEY (item_definition_id, calendar_id)
@@ -260,9 +267,9 @@ export interface PatternThreshold {
   SELECT l.* FROM health_event_logs l
   JOIN calendar_profiles p ON l.calendar_id = p.id
   WHERE p.user_id = $current_user_id AND l.calendar_id = $calendar_id;
-- Input Sanitization: Free-text inputs (notes, item names) are sanitized using `DOMPurify.sanitize()` in the client before length validation. The server trims, validates length with Zod and stores plain text. Text is always rendered through Vue interpolation; `v-html` is forbidden.
+- Input Sanitization: Free-text inputs (notes, item names) are sanitized in the client with `sanitizeText()` (DOMPurify, returning plain text) before length validation. The server trims, validates length with Zod and stores plain text. Text is always rendered through Vue interpolation; `v-html` is forbidden.
 - Rate Limiting: whole router protected. `POST /api/auth/register` and `POST /api/auth/login`: `AUTH_RATE_LIMIT_MAX` requests (default 20) per IP every 15 minutes. Everything else, including `DELETE /api/auth/account`: 100 requests per minute per IP. Express runs with `trust proxy` configured so the limiter sees the real client IP behind Neon-hosted/containerized deployments.
-- Session: the JWT travels in an `httpOnly` cookie `cuidat_session` (`Secure` in production, `SameSite=Lax`, lifetime `JWT_EXPIRES_IN`), never in `localStorage`. `POST /api/auth/logout` clears it, and `GET /api/auth/me` restores the session on load. CORS allows credentials only for `CLIENT_ORIGIN`, and the client sends `credentials: 'include'`. CSRF: state-changing requests must carry the header `X-CuidaT-Client: web` (forces a CORS preflight) and an `Origin` equal to `CLIENT_ORIGIN`. Client and API must share the same site (e.g. `app.example.com` and `api.example.com`, or one reverse proxy); `localhost` ports count as the same site in development.
+- Session: the JWT travels in an `httpOnly` cookie `cuidat_session` (`Secure` in production, `SameSite=Lax`, lifetime `JWT_EXPIRES_IN`, 24 hours by default: a stolen token is useful for less time), never in `localStorage`. `POST /api/auth/logout` clears it, and `GET /api/auth/me` restores the session on load. CORS allows credentials only for `CLIENT_ORIGIN`, and the client sends `credentials: 'include'`. CSRF: state-changing requests must carry the header `X-CuidaT-Client: web` (forces a CORS preflight) and an `Origin` equal to `CLIENT_ORIGIN`. Client and API must share the same site (e.g. `app.example.com` and `api.example.com`, or one reverse proxy); `localhost` ports count as the same site in development.
 - Observability Privacy: Sentry never receives health data (see ADR-012).
 - GDPR Compliance: Client-side JSON export for Art. 20. Atomic cascade deletion for Art. 17.
 
@@ -283,7 +290,7 @@ export interface PatternThreshold {
 - ADR-006: Catalog Lifecycle: Versioning, Archive and Cascade Delete
   - Decision: Only edits that change the shape of the recorded data (`track_intensity`, `track_duration`) create a new version (`status = 'superseded'` for the old one, same `root_id`, `parent_id` link). Cosmetic edits (`name`, `emoji`) apply to the whole lineage; `category` is immutable. Removing an item is either Archive (reversible, history kept, definition locked) or Permanent Delete (warning + acceptance, cascades to logs). Analytics group by `root_id`.
 - ADR-007: Offline-First Sync Without Background Sync API
-  - Decision: The Background Sync API is Chromium-only, so it is at most a progressive enhancement. The core is an application-level mutation queue in IndexedDB (LocalForage, key `@cuidat_sync_queue_v1`) for event logs: entries `{ opId, type: 'upsert' | 'delete', entityId, payload, createdAt, attempts }`. Entities use client-generated UUIDs and the API is idempotent (`PUT /events/:id` upserts, `DELETE` ignores missing rows). The queue is coalesced (upsert+upsert merges, create+delete cancels) and flushed on app start, on the `online` event, on `visibilitychange` to visible, after each local mutation when online, and by an exponential-backoff timer (5 s up to 5 min) while the app is open. Conflicts resolve last-write-wins on `updated_at`. 4xx responses move the entry to a dead-letter list and notify the user; network/5xx errors retry.
+  - Decision: The Background Sync API is Chromium-only, so it is at most a progressive enhancement. The core is an application-level mutation queue in IndexedDB (LocalForage, key `@cuidat_sync_queue_v1`) for event logs: entries `{ opId, type: 'upsert' | 'delete', entityId, payload, createdAt, attempts }`. Entities use client-generated UUIDs and the API is idempotent (`PUT /events/:id` upserts, `DELETE` ignores missing rows). The queue is coalesced (upsert+upsert merges, create+delete cancels) and flushed on app start, on the `online` event, on `visibilitychange` to visible, after each local mutation when online, and by an exponential-backoff timer (5 s up to 5 min) while the app is open. Conflicts resolve last-write-wins on `updated_at`. The client sends `updated_at` with each queued operation (the instant of the mutation); the server clamps it to `now() + 5 minutes` before comparing. Queued logs for archived or superseded items are accepted; only online creation is refused. 4xx responses move the entry to a dead-letter list and notify the user; network/5xx errors retry.
   - Rate limiting: see section 7.
 - ADR-008: Mandatory E2E Coverage for GDPR Destructive Workflows
   - Decision: Critical privacy flows, specifically the Art. 17 right to be forgotten (account deletion), must be strictly covered by Playwright E2E tests to ensure destructive operations function flawlessly and client state is completely purged.
@@ -296,7 +303,7 @@ export interface PatternThreshold {
 - ADR-011: Strict Quality Gates via Husky
   - Decision: `pre-commit` runs `lint-staged`, `npm run typecheck` and `npm run test:unit`; `commit-msg` runs commitlint (Conventional Commits). `typecheck` = `tsc` for shared/server and `vue-tsc` for the client, so `.vue` files are checked.
 - ADR-012: Full-Stack Observability via Sentry
-  - Decision: Integrate Sentry SDKs in both Vue (client) and Express (server) to trace unhandled exceptions, monitor release health, and demonstrate production-readiness. Health data is special-category data (GDPR Art. 9), so: EU data region DSN, `dataCollection` with every switch off (`userInfo`, `cookies`, `httpHeaders`, `httpBodies: []`, `urlQueryParams`, `stackFrameVariables`; Sentry 11 replaced `sendDefaultPii` with this object), `attachErrorHandler: false` (errors are reported from `app.config.errorHandler`), no Session Replay, `beforeSend`/`beforeBreadcrumb` scrubbers that drop request bodies, notes, item names, query strings and console/fetch breadcrumb payloads, and the only user identifier is the opaque user UUID (never email). Low `tracesSampleRate`.
+  - Decision: Integrate Sentry SDKs in both Vue (client) and Express (server) to trace unhandled exceptions, monitor release health, and demonstrate production-readiness. Health data is special-category data (GDPR Art. 9), so: EU data region DSN, `dataCollection` with every switch off (`userInfo`, `cookies`, `httpHeaders`, `httpBodies: []`, `urlQueryParams`, `stackFrameVariables`; Sentry 11 replaced `sendDefaultPii` with this object), `attachErrorHandler: false` (errors are reported from `app.config.errorHandler`), no Session Replay, `beforeSend`/`beforeBreadcrumb` scrubbers that drop request bodies, notes, item names, query strings, console breadcrumbs and UI breadcrumbs (their `aria-label` holds item names and dates), and keep only the payload of fetch breadcrumbs without query strings, and the only user identifier is the opaque user UUID (never email). Low `tracesSampleRate`.
 - ADR-013: Clean Architecture Layout
   - Decision: Layers and dependency rule as defined in section 3.1.
 - ADR-014: Database Lifecycle (Hard Reset Once, Migrate Afterwards)
@@ -309,3 +316,9 @@ export interface PatternThreshold {
   - Decision: See section 7 (Session). Chosen over `localStorage` tokens because health data warrants that an XSS cannot exfiltrate the credential.
 - ADR-018: Freemium Guest Model
   - Decision: Guests get a usable current-month calendar, 1 profile and a catalog of at most 3 symptoms + 3 triggers/medication (the 6 preset items fill it); month navigation and more items are gated behind registration with the message "Opción no disponible sin iniciar sesión." Limits are soft (client-side) and only an incentive; registered users have no such limits. Guest data is imported in the same transaction that creates the account.
+- ADR-020: Accepted Residual Risk for Unencrypted Guest Data
+  - Context: guest data is health data stored in `localStorage` (`@cuidat_guest_v1`) without encryption. A guest has no password, so any key kept on the device sits next to the data and offers no protection against code running in the same origin.
+  - Decision: accept the risk for guest mode and do not add client-side encryption. The controls are: input sanitization and no `v-html`/`innerHTML` (OWASP A03), a Content Security Policy that allows only same-origin scripts (set by Helmet in Phase 3), no third-party scripts or resources, and a privacy notice that explains that guest data stays in the browser.
+  - Registered users: their data is sent over TLS and stored on the server (Neon encrypts at rest). After a successful registration with migration, or an account deletion, the client removes `@cuidat_guest_v1` and `@cuidat_guest_v1.corrupto`.
+  - Review: reopen this decision if guest mode is offered to users who cannot use the browser's own protections, or if CSP cannot be enforced.
+

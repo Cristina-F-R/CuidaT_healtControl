@@ -76,7 +76,7 @@ Esta guía define el flujo de desarrollo para reconstruir CuidaT con una arquite
 
 | Dependencia | Tipo | Propósito principal |
 |---|---|---|
-| `vitest`, `@vitest/coverage-v8` | Desarrollo | Pruebas unitarias y cobertura (100 % en `correlation.ts`). |
+| `vitest`, `@vitest/coverage-v8` | Desarrollo | Pruebas unitarias y cobertura (100 % en `correlation.ts` y `catalog.ts`). |
 | `jsdom`, `@vue/test-utils` | Desarrollo | Entorno y utilidades para pruebas de componentes y stores. |
 | `@playwright/test` | Desarrollo | Pruebas de extremo a extremo (incluye el *runner*). |
 | `eslint`, `@eslint/js`, `typescript-eslint`, `eslint-plugin-vue`, `globals` | Desarrollo | Linter que hace cumplir `STYLE_GUIDE.md`. |
@@ -134,6 +134,7 @@ cd client && npx tailwindcss init -p && cd ..
 ### 3. Dependencias del backend
 
 ```bash
+npm install zod -w shared
 npm install express cors cookie-parser helmet dotenv zod pg bcrypt jsonwebtoken express-rate-limit @sentry/node @sentry/profiling-node -w server
 npm install -D typescript@~6.0.3 @types/express @types/cors @types/cookie-parser @types/node @types/pg @types/bcrypt @types/jsonwebtoken tsx supertest @types/supertest -w server
 ```
@@ -274,7 +275,7 @@ export default defineConfig(
 
 ### 0.3. Neon y variables de entorno
 
-1. La base de datos ya existente en Neon es la rama principal y se usa directamente. Su contenido actual se borra **una vez** en la sección 3.1 (aún no hay usuarios reales).
+1. La base de datos de Neon es la rama principal y se usa directamente. Se crea y se llena con el esquema **una vez**, al final de la Fase 2 (sección 2.3; aún no hay usuarios reales).
 2. Copia de Neon las dos cadenas de conexión: la *pooled* (host con `-pooler`) y la directa.
 3. Crea `server/.env.example` y `client/.env.example` como en `TECH_SPEC.md`, sección 4, y copia el primero a `server/.env`. `JWT_SECRET` debe tener al menos 32 caracteres aleatorios (`openssl rand -base64 48`).
 4. Cuando el esquema esté creado y antes de tener usuarios reales, crea desde la rama principal las ramas `dev` (desarrollo) y `test` (E2E y CI). Heredan el esquema y se pueden reiniciar sin riesgo. A partir de ahí, `server/.env` apunta a `dev`.
@@ -315,14 +316,14 @@ La instalación base se corresponde con los apartados de inicialización del mon
 >
 > 1. Configura la estructura del monorepo (`shared`, `client`, `server`) con sus `tsconfig` y referencias, y las carpetas por capas de la sección 3.1. En `shared/src/types.ts`, define interfaces TypeScript estrictas e incluye categoría (`symptom`, `trigger`, `medication`), estado del ítem, `rootId`, campos de duración, intensidad y umbrales de patrón. Reexporta todo desde `shared/src/index.ts`.
 > 2. En `client`, configura Tailwind CSS 3.4 en `tailwind.config.js` con los tokens de `TECH_SPEC.md`, sección 2: escala completa `slate` (DEFAULT 600), `peach`, `sky`, `mint`, `tint`, `canvas` y `danger`/`danger-dark`. Define `fontFamily.sans` como Nunito Sans Variable.
-> 3. Maqueta un diseño con `SidebarDock`, `CalendarGrid` y `MonthlyInsightsSummary`. Con el breakpoint `lg` (1024 px) se muestran en tres columnas; por debajo, en una sola. El panel derecho debe mostrar dos secciones: «Vigilar posible patrón» y «Patrón detectado».
+> 3. Maqueta un diseño con `SidebarDock`, `CalendarGrid` y `MonthlyInsightsSummary`. Con el breakpoint `lg` (1024 px) se muestran en tres columnas; por debajo, en una sola. El panel derecho debe mostrar dos secciones: «Vigilar posible patrón» y «Patrón detectado». En esta fase quedan vacías; las coincidencias reales se conectan en la Fase 2.
 > 4. Valida con Day.js las fechas futuras para todos los usuarios. Los días posteriores a la fecha actual deben aparecer deshabilitados (`cursor-not-allowed`, `opacity-50`) y conservar un botón de día con `aria-disabled="true"` que muestre el *toast* «No se pueden registrar métricas en fechas futuras.» sin abrir modales ni aceptar elementos arrastrados. El botón de mes siguiente se deshabilita al llegar al mes actual.
 > 5. Importa la fuente en local con `@fontsource-variable/nunito-sans` desde `main.ts`. No uses enlaces a Google Fonts.
 > 6. Antes de escribir código, explica cómo separarás los dos modos de colocación en `useInteraction.ts`: seleccionar y colocar para todos (los elementos del dock son botones con `aria-pressed`) y arrastrar y soltar con la API HTML5 nativa (`draggable`, `dragstart`, `dragover`, `drop`), sin librerías, solo cuando `matchMedia('(hover: hover) and (pointer: fine)')` coincide.
 > 7. Configura `app.config.errorHandler` en `main.ts` y crea un componente sencillo `FallbackError.vue` para evitar pantallas en blanco.
 > 8. Durante el arrastre, ilumina los días válidos como zonas de destino. Los días futuros bloqueados no deben reaccionar.
 > 9. Estructura cada celda según el ADR-015: contenedor no interactivo, botón de día extendido sobre toda la celda (`after:absolute after:inset-0`) y puntos de evento como botones hermanos con `relative z-10`. Usa elementos semánticos, `aria-label` en botones sin texto, foco atrapado en los modales y `aria-live="polite"` en los *toasts*.
-> 10. Inicializa `@sentry/vue` en `main.ts` y vincúlalo con el controlador global de errores. Sin datos de salud: DSN de región UE, `attachErrorHandler: false` (el error se reporta desde el controlador global), `dataCollection` con todo desactivado (Sentry 11 sustituyó `sendDefaultPii` por este objeto), sin Session Replay, `beforeSend` y `beforeBreadcrumb` que eliminen cuerpos de petición, notas, nombres de ítems y *query strings*, y el UUID del usuario como único identificador.
+> 10. Inicializa `@sentry/vue` en `main.ts` y vincúlalo con el controlador global de errores. Sin datos de salud: DSN de región UE, `attachErrorHandler: false` (el error se reporta desde el controlador global), `dataCollection` con todo desactivado (Sentry 11 sustituyó `sendDefaultPii` por este objeto), sin Session Replay, `beforeSend` y `beforeBreadcrumb` que eliminen cuerpos de petición, notas, nombres de ítems y *query strings*, y que descarte los breadcrumbs `ui.*` (su `aria-label` contiene nombres de ítem y fechas), y el UUID del usuario como único identificador.
 > 11. Comprueba que `npm run typecheck` y `npm run lint` finalizan sin errores.
 
 ## Fase 2: motor, estado Pinia y restricciones del modo invitado
@@ -342,36 +343,42 @@ Crea `vitest.config.ts` en la raíz con tres proyectos (`shared` y `server` en e
 > 1. Crea `detectCorrelations()` en `shared/src/correlation.ts` siguiendo la sección 6 de `TECH_SPEC.md`: orden estable por `(loggedAt, createdAt, id)`, coincidencia con `0 <= deltaHours <= ventana` (el instante idéntico cuenta), agrupación por linaje (`rootItemId`) y categorías «Vigilar posible patrón» (3 a 6) y «Patrón detectado» (7 o más). La ventana en horas se inyecta desde el perfil activo. Obtén un 100 % de cobertura en Vitest.
 > 2. Crea `shared/src/catalog.ts` con funciones puras para el ciclo de vida del catálogo (sección 1.9 de la spec): editar `name`/`emoji` en el linaje completo, editar `track_intensity`/`track_duration` creando una nueva versión (`superseded` + nueva fila con el mismo `rootId` y `parentId`), bloquear el cambio de `category`, archivar, restaurar y calcular el impacto de una eliminación definitiva (número de registros). 100 % de cobertura.
 > 3. Define interfaces de repositorio (`EventRepository`, `ItemRepository`, `ProfileRepository`) y su implementación local `Local...Repository` sobre `localStorage`, bajo la clave `@cuidat_guest_v1`. Los ids se generan con `crypto.randomUUID()`. Implementa Pinia sobre esas interfaces; al crear un perfil local, permite seleccionar una ventana de correlación de 2, 6, 12, 24, 36 o 48 horas.
-> 4. Si `authMode` es `guest`: un perfil, solo el mes actual (flechas de mes, Quick Jump y selector de densidad bloqueados) y un máximo de 3 síntomas y 3 triggers/medicación (`GUEST_MAX_SYMPTOMS`, `GUEST_MAX_TRIGGERS`, en `useGuestLimits.ts`; los archivados siguen contando y los eliminados liberan hueco). Al intentar navegar o superar el límite, muestra el *toast* «Opción no disponible sin iniciar sesión.» con la acción «Crear cuenta» que abre `AuthModal.vue`. Los datos de meses anteriores siguen guardados localmente. El bloqueo de futuro ya es general.
+> 4. Si `authMode` es `guest`: un perfil, solo el mes actual (flechas de mes, Quick Jump y selector de densidad bloqueados) y un máximo de 3 síntomas y 3 triggers/medicación (`GUEST_MAX_SYMPTOMS`, `GUEST_MAX_TRIGGERS` en `shared/src/constants.ts`; las reglas en `shared/src/guestLimits.ts`, que `useGuestLimits.ts` expone a la interfaz; los archivados siguen contando y los eliminados liberan hueco). Al intentar navegar o superar el límite, muestra el *toast* «Opción no disponible sin iniciar sesión.» con la acción «Crear cuenta» que abre `AuthModal.vue`. Los datos de meses anteriores siguen guardados localmente. El bloqueo de futuro ya es general.
 > 5. Crea `shared/src/presets.ts` con `PRESET_ITEMS`: síntomas Vómito, Heces blandas y Malestar / dolor; triggers Pescado y Lácteos; medicación Medicación (sin «Picor»). El perfil de invitado se inicializa con ellos en la primera carga; son ítems normales (editables, archivables y eliminables). Cada ítem pertenece a una categoría. En `EventLogModal.vue`, la hora es obligatoria: por defecto la hora actual si el día es hoy, y si no una franja (Mañana 08:00, Mediodía 13:00, Tarde 18:00, Noche 22:00) con ajuste fino en pasos de 15 minutos. Para hoy, la hora se limita al instante actual. Muestra dinámicamente intensidad (1 a 3) y duración en minutos según el ítem.
 > 6. Al pulsar el botón de día de una celda, abre `DaySummaryModal.vue`. En modo normal, permite editar y eliminar. En «Modo Consulta», utiliza solo lectura. Cada registro se muestra con los campos de su propia versión de ítem.
 > 7. En la gestión de ítems, incluye un selector visual de emojis, la categoría (bloqueada al editar), `track_intensity` y `track_duration`, el aviso de que los cambios de nombre y emoji son retroactivos, «Archivar» como opción principal y «Eliminar definitivamente» con el número de registros afectados y una casilla de aceptación.
-> 8. Antes de guardar en Pinia, aplica `DOMPurify.sanitize()` a las notas (300 caracteres) y a los nombres de ítem.
-> 9. Verifica el resultado con `npm run typecheck`, `npm run lint` y `npm run test:coverage`.
+> 8. Antes de guardar en Pinia, pasa las notas (300 caracteres) y los nombres de ítem por `sanitizeText()` (`client/src/application/sanitizeText.ts`). Internamente usa DOMPurify con `RETURN_DOM_FRAGMENT` y devuelve solo texto. No guardes la salida de `DOMPurify.sanitize()` directamente: devuelve HTML. Vue muestra el texto por interpolación: `v-html` sigue prohibido.
+> 9. Conecta `detectCorrelations()` con el panel derecho (`MonthlyInsightsSummary.vue` y `PatternSection.vue`): muestra las coincidencias del mes visible en «Vigilar posible patrón» y «Patrón detectado», con los nombres de la versión vigente de cada ítem. Las coincidencias usan los registros del mes visible y de la ventana previa a él. Los filtros por periodo, síntomas y desencadenantes son de la Fase 4 (punto 5 del Prompt 4).
+> 10. Verifica el resultado con `npm run typecheck`, `npm run lint` y `npm run test:coverage`.
 
-## Fase 3: backend, base de datos y autenticación
+### 2.3. Esquema en Neon (al final de esta fase)
 
-**Objetivo:** levantar Express sobre Neon, aplicar el nuevo esquema borrando el contenido anterior una sola vez y dejar la autenticación funcionando.
+Se hace **una sola vez**, al terminar esta fase y antes de empezar la Fase 3, porque el servidor y sus migraciones dependen de este esquema.
 
-### 3.1. Creación de las tablas en Neon
+Antes de ejecutar nada:
 
-La base asociada al proyecto en Neon (rama principal) se vacía **una vez** y se recrea con el esquema nuevo. A partir de ahí se trabaja con migraciones que no borran datos. Los scripts están en `docs/neon/` y se han validado en PostgreSQL 16 (Neon usa 16 o 17).
+- Crea el proyecto en Neon con **PostgreSQL 17** (valor por defecto; 16 también sirve) y **región de la UE** (Frankfurt). Así los datos quedan en la UE (RGPD) y cerca del servicio de Render de la Fase 5.
+- La base se llama `neondb` y la rama inicial es `main`.
 
 > [!WARNING]
-> El paso 1 elimina por completo el esquema `public` (tablas, datos, relaciones, índices) de la base a la que estés conectado. Antes de ejecutarlo, comprueba en Neon que estás en la rama principal y en la base prevista.
+> El paso 1 elimina por completo el esquema `public` (tablas, datos, relaciones, índices) de la base a la que estés conectado. En un proyecto nuevo no hay nada que perder, pero comprueba en Neon que estás en la rama `main` y la base `neondb` antes de pulsar **Run**.
 
 En el **SQL Editor** de Neon, ejecuta en este orden (pega el contenido de cada archivo y pulsa **Run**):
 
 | Paso | Archivo | Qué hace |
 |---|---|---|
 | 1 | `docs/neon/reset.sql` | **Destructivo.** `DROP SCHEMA public CASCADE` y lo recrea vacío. |
-| 2 | `docs/neon/001_init.sql` | Crea las cuatro tablas, restricciones e índices (sin `DROP`). |
+| 2 | `docs/neon/001_init.sql` | Crea las tablas, restricciones, índices y las reglas de integridad (triggers). Sin `DROP`. |
 | 3 | `docs/neon/register_001.sql` | Crea `schema_migrations` y marca `001_init` como aplicada. |
-| 4 | `docs/neon/smoke_test.sql` | Prueba de humo: debe terminar con el aviso `SMOKE TEST OK`. No deja datos. |
+| 4 | `docs/neon/smoke_test.sql` | Prueba de humo: debe terminar con el aviso `SMOKE TEST OK`. Corre en un bloque que se revierte entero si falla y borra sus propios datos al terminar. |
 
-Qué comprueba la prueba de humo: email en minúsculas y único; `profile_type` no vacío (texto libre), `category`, ventanas, intensidad y duración válidos; que un ítem, su padre, su raíz y un registro nunca referencien otro calendario; una sola versión vigente por ítem; que borrar la raíz elimine todo su linaje y sus registros sin tocar otros ítems; y que borrar el usuario elimine todo en cascada.
+Después, crea las ramas `dev` y `test` desde `main` (paso 0.3.4) y comprueba que ambas tienen el esquema. Las migraciones de la Fase 3 se aplican sobre este mismo esquema.
 
-Después, copia `docs/neon/001_init.sql` a `server/src/db/migrations/001_init.sql`. Cuando exista el servidor, el mismo flujo está disponible por terminal:
+Qué comprueba la prueba de humo: email en minúsculas y único; `profile_type` no vacío (texto libre), `category`, ventanas, intensidad y duración válidos; notas no vacías; que un ítem, su padre, su raíz y un registro nunca referencien otro calendario; una sola versión vigente por ítem; que las métricas de un registro sean las de su versión; que no se registre en el futuro; que la categoría y las métricas de un ítem no cambien en sitio y que una versión sustituida no vuelva a estar vigente; que borrar la raíz elimine todo su linaje y sus registros; y que borrar el usuario elimine todo en cascada.
+
+Validación: los scripts se han comprobado en local con PGlite (PostgreSQL 18), que no es Neon. La comprobación definitiva es el paso 4 en Neon: si falla, no sigas a la Fase 3.
+
+Cuando exista el servidor (Fase 3), el mismo flujo estará disponible por terminal:
 
 - `npm run db:migrate`: crea `schema_migrations` si no existe y aplica, en orden y en una transacción, las migraciones pendientes. Es idempotente y nunca borra datos.
 - `npm run db:reset`: reinicia el esquema y llama a la misma lógica. Solo funciona con `ALLOW_DB_RESET=true` y la bandera `--yes`, e imprime el host y la base antes de actuar. Tras el reinicio de la rama principal, `ALLOW_DB_RESET` vuelve a `false`.
@@ -380,22 +387,35 @@ Después, copia `docs/neon/001_init.sql` a `server/src/db/migrations/001_init.sq
 ALLOW_DB_RESET=true npm run db:reset -- --yes
 ```
 
-### 3.2. Prompt de la Fase 3
+## Fase 3: backend, base de datos y autenticación
+
+**Objetivo:** levantar Express sobre el esquema de Neon creado al final de la Fase 2 y dejar la autenticación funcionando, también en el cliente.
+
+### Prompt de la Fase 3
 
 > **Prompt 3**
 >
 > Inicia la Fase 3 de backend y persistencia con la arquitectura de la sección 3.1 de `TECH_SPEC.md`:
 >
-> 1. Copia `docs/neon/001_init.sql` a `server/src/db/migrations/` sin modificarlo y crea `migrate.ts` y `reset.ts` como se describe en la sección 3.1 (sin `DROP` en la migración; `reset.ts` con las salvaguardas `ALLOW_DB_RESET` y `--yes`). Usa `DATABASE_URL_DIRECT` para ambos y `DATABASE_URL` para la API.
-> 2. Verifica que el esquema aplicado coincide con `TECH_SPEC.md`, sección 5 (restricciones, claves compuestas, índice de versión vigente) y ejecuta `smoke_test.sql` contra la rama `dev`.
+> 1. Copia `docs/neon/001_init.sql` a `server/src/db/migrations/` sin modificarlo y crea `migrate.ts` y `reset.ts` como se describe en la sección 2.3 (sin `DROP` en la migración; `reset.ts` con las salvaguardas `ALLOW_DB_RESET` y `--yes`). Usa `DATABASE_URL_DIRECT` para ambos y `DATABASE_URL` para la API.
+> 2. Verifica que `server/src/db/migrations/001_init.sql` es idéntico a `docs/neon/001_init.sql` y que el esquema de `dev` coincide con `TECH_SPEC.md`, sección 5 (restricciones, claves compuestas, índice de versión vigente y triggers). Ejecuta `smoke_test.sql` contra `dev` (en `main` ya pasó al final de la Fase 2).
 > 3. Configura Express con `trust proxy`, Helmet, `cookie-parser` y CORS con credenciales solo para `CLIENT_ORIGIN`. La sesión es un JWT en la cookie `httpOnly` `cuidat_session` (`Secure` en producción, `SameSite=Lax`, caducidad `JWT_EXPIRES_IN`); añade `POST /api/auth/logout` y `GET /api/auth/me`. Las peticiones que modifican estado deben llevar la cabecera `X-CuidaT-Client: web` y un `Origin` igual a `CLIENT_ORIGIN`. Define la jerarquía `AppError` y un middleware que la traduzca a HTTP.
-> 4. Implementa `POST /api/auth/register` con un `guestData` opcional. Si llega, crea el usuario y importa el contenido de `@cuidat_guest_v1` en la misma transacción, validándolo con las reglas normales (1 perfil, máximo 3 síntomas y 3 triggers/medicación, sin eventos futuros, textos saneados) y **regenerando todos los ids** en el servidor. No existe endpoint `upgrade` ni usuarios anónimos.
+> 4. Implementa `POST /api/auth/register` con un `guestData` opcional. Si llega, crea el usuario y importa el contenido de `@cuidat_guest_v1` en la misma transacción, validándolo con las reglas normales (1 perfil, máximo 3 síntomas y 3 triggers/medicación, sin eventos futuros, textos saneados) y **regenerando todos los ids** en el servidor. No existe endpoint `upgrade` ni usuarios anónimos. El cliente borra `@cuidat_guest_v1` y su copia de seguridad tras una respuesta correcta (ADR-020).
 > 5. Crea el endpoint de inicio de sesión y protege las contraseñas mediante bcrypt.
 > 6. Configura `express-rate-limit`: `AUTH_RATE_LIMIT_MAX` solicitudes (por defecto 20) cada 15 minutos para `POST /api/auth/register` y `POST /api/auth/login`, y 100 solicitudes por minuto para el resto de la API, incluido `DELETE /api/auth/account`.
 > 7. Crea `server/Dockerfile` multietapa (contexto en la raíz del repositorio, porque necesita `shared`): compila `shared`, `client` y `server` y deja una imagen en la que, con `SERVE_CLIENT=true`, Express sirve la API en `/api` y el cliente compilado (`client/dist`, con *fallback* a `index.html`) desde el mismo origen. Añade un `docker-compose.yml` en la raíz que levante esa imagen leyendo `server/.env`. No hay PostgreSQL local: la base es Neon.
 > 8. Configura `@sentry/node` con las mismas reglas de privacidad que el cliente (sin datos de salud, sin PII, solo el UUID del usuario).
 > 9. Comprueba que Husky ejecuta `lint-staged`, `npm run typecheck` y `npm run test:unit` en `pre-commit` y commitlint en `commit-msg`.
-> 10. Muestra el script SQL final antes de escribir los controladores.
+> 10. Muestra la lista de rutas, los esquemas Zod y los errores de cada una antes de escribir los controladores.
+> 11. Cliente de autenticación: convierte `AuthModal.vue` (marcador de la Fase 2) en formulario de inicio de sesión y registro, con los esquemas Zod de `shared`. Al arrancar, llama a `GET /api/auth/me` para restaurar la sesión, y `AppHeader.vue` muestra «Modo Local» o «Sincronizado» según el caso. El interruptor de migración de datos llega en la Fase 4 (punto 2).
+> 12. Requisitos OWASP Top 10 (2021) del servidor, además de los puntos anteriores:
+>     - **A03 Inyección:** todas las consultas con parámetros (`$1`, `$2`) del driver `pg`; ningún texto de usuario concatenado en SQL.
+>     - **A02 Fallos criptográficos:** bcrypt con coste de al menos 12; HTTPS en Render y cookie `Secure` en producción; `JWT_SECRET` aleatorio, nunca en el repositorio.
+>     - **A05 Configuración de seguridad:** CSP con Helmet (`default-src 'self'`, scripts solo del mismo origen, `connect-src` con el DSN de Sentry), `x-powered-by` desactivado, `express.json({ limit: '100kb' })` y, en producción, errores sin stack traces.
+>     - **A07 Autenticación:** contraseña de al menos 12 caracteres; `POST /api/auth/login` responde igual exista o no el email; `jwt.verify` fija `algorithms: ['HS256']`; el arranque falla si `JWT_SECRET` tiene menos de 32 caracteres o falta.
+>     - **A09 Registro de eventos:** registrar eventos de seguridad (login fallido, registro, borrado de cuenta) con el UUID y sin email ni datos de salud, en la salida del servidor.
+>     - **A08 Integridad:** imagen Docker con versión de base fijada y `npm ci` con el lockfile; las acciones de GitHub se fijan a su SHA (Fase 3.3).
+>     - **Manejo de errores:** los errores no esperados devuelven un 500 genérico; el detalle solo va a Sentry, con el mismo filtrado de la Fase 1.
 
 ## Fase 3.1: sesión y derechos RGPD
 
@@ -410,7 +430,7 @@ ALLOW_DB_RESET=true npm run db:reset -- --yes
 > 1. Haz que `AppHeader.vue` muestre dinámicamente «Modo Local», «Sincronizado», «Pendiente (N)» o «Sin conexión» (los dos últimos se activan con la Fase 3.2).
 > 2. Añade al menú de perfil la opción «Descargar mis datos (JSON)», que generará y descargará un `Blob` en el cliente y revocará la URL.
 > 3. Añade «Eliminar cuenta y datos». Abre `DeleteAccountModal.vue` y exige escribir `ELIMINAR` para habilitar el botón de confirmación.
-> 4. Crea `DELETE /api/auth/account`. Las restricciones `ON DELETE CASCADE` deberán eliminar los calendarios y registros asociados dentro de una transacción. El servidor borra la cookie de sesión. En el cliente, vacía la cola de sincronización y los stores (`resetState()`), y limpia también `@cuidat_guest_v1`.
+> 4. Crea `DELETE /api/auth/account`. Las restricciones `ON DELETE CASCADE` deberán eliminar los calendarios y registros asociados dentro de una transacción. El servidor borra la cookie de sesión. En el cliente, vacía los stores (`resetState()`) y limpia `@cuidat_guest_v1` y su copia de seguridad `@cuidat_guest_v1.corrupto`. La cola de sincronización se vacía también cuando exista (Fase 3.2).
 > 5. Crea `playwright.config.ts` con `webServer` para cliente y servidor y la rama `test` de Neon.
 > 6. Escribe la prueba E2E `tests/e2e/account-deletion.spec.ts` con Playwright. Debe comprobar el registro e inicio de sesión, la apertura del modal, el bloqueo sin la palabra requerida, la confirmación correcta y el regreso de la interfaz a «Modo Local».
 > 7. Comprueba que `npm run typecheck`, `npm run lint` y `npm run test:e2e` finalizan correctamente.
@@ -426,9 +446,9 @@ ALLOW_DB_RESET=true npm run db:reset -- --yes
 > Implementa la Fase 3.2. Todas las rutas requieren JWT, validan con los esquemas Zod de `shared` y acceden a datos solo a través de repositorios que filtran por usuario mediante el `JOIN` con `calendar_profiles`:
 >
 > 1. Perfiles: `GET/POST/PATCH/DELETE /api/profiles`. `POST` crea el perfil vacío (el tipo es texto libre, de 1 a 50 caracteres, saneado). Añade `POST /api/profiles/:profileId/items/presets`, que crea `PRESET_ITEMS` en una transacción (acción «Añadir ítems de ejemplo»). El borrado rechaza (`ValidationError`) el último perfil del usuario; para evitar la carrera de dos borrados simultáneos, ejecútalo en una transacción que bloquee las filas de perfiles del usuario (`SELECT ... FOR UPDATE`) antes de contar.
-> 2. Ítems de un perfil: `GET /api/profiles/:profileId/items?status=`, `POST`, `PATCH /:id` (aplica las reglas de `shared/src/catalog.ts`: versionado, edición del linaje, `category` inmutable), `POST /:id/archive`, `POST /:id/restore`, `GET /:id/impact` (número de registros afectados) y `DELETE /:id` (eliminación definitiva de todo el linaje y sus registros).
-> 3. Eventos: `GET /api/profiles/:profileId/events?from=&to=` (por defecto, los últimos tres meses), `PUT /api/profiles/:profileId/events/:id` (idempotente, con el id generado por el cliente y validado como UUID; si el registro existe en ese mismo calendario solo se actualiza cuando `updated_at` es más reciente, y si el id pertenece a otro calendario responde 409 sin modificar nada) y `DELETE /api/profiles/:profileId/events/:id` (idempotente).
-> 4. Validaciones de servidor: `logged_at` no puede superar `now() + 5 minutos`; los ítems archivados no admiten registros nuevos; `intensity` y `duration_minutes` solo si el ítem los registra; notas saneadas y de hasta 300 caracteres.
+> 2. Ítems de un perfil: `GET /api/profiles/:profileId/items?status=`, `POST`, `PATCH /:id` (aplica las reglas de `shared/src/catalog.ts`: versionado, edición del linaje, `category` inmutable; al cambiar la forma de un ítem, marca primero la versión vigente como `superseded` y después inserta la nueva, porque el índice único parcial y los triggers de `001_init.sql` lo exigen; las métricas nunca se actualizan en sitio), `POST /:id/archive`, `POST /:id/restore`, `GET /:id/impact` (número de registros afectados) y `DELETE /:id` (eliminación definitiva de todo el linaje y sus registros).
+> 3. Eventos: `GET /api/profiles/:profileId/events?from=&to=` (por defecto, los últimos tres meses), `PUT /api/profiles/:profileId/events/:id` (idempotente, con el id generado por el cliente y validado como UUID; si el registro existe en ese mismo calendario solo se actualiza cuando `updated_at` es más reciente, y si el id pertenece a otro calendario responde 409 sin modificar nada; `updated_at` lo envía el cliente y el servidor lo acota a `now() + 5 min`) y `DELETE /api/profiles/:profileId/events/:id` (idempotente).
+> 4. Validaciones de servidor: `logged_at` no puede superar `now() + 5 minutos`; los ítems archivados no admiten registros nuevos (los registros que llegan de la cola de sincronización se aceptan aunque su ítem esté archivado o sustituido, ADR-007); `intensity` y `duration_minutes` solo si el ítem los registra; notas saneadas y de hasta 300 caracteres.
 > 5. En el cliente, crea `ApiEventRepository`, `ApiItemRepository` y `ApiProfileRepository`, y haz que el store elija la implementación según `authMode`.
 > 6. Implementa la sincronización sin conexión del ADR-007 con `SyncQueue` (LocalForage, clave `@cuidat_sync_queue_v1`) y `useSyncStore`: entradas `{ opId, type, entityId, payload, createdAt, attempts }`, fusión de operaciones (varios `upsert` se combinan, crear y borrar se cancelan), vaciado al iniciar, al evento `online`, al pasar la pestaña a visible, tras cada mutación con conexión y con reintentos de espera exponencial (5 s hasta 5 min). Los errores 4xx pasan a una lista de fallos y avisan al usuario; los de red o 5xx se reintentan. La Background Sync API, si existe, es solo una mejora opcional. Los perfiles y el catálogo requieren conexión en esta versión.
 > 7. Configura `vite-plugin-pwa` (manifiesto, iconos y *service worker* con caché de la aplicación).
@@ -445,7 +465,7 @@ ALLOW_DB_RESET=true npm run db:reset -- --yes
 >
 > Crea la integración continua:
 >
-> 1. `.github/workflows/ci.yml` con dos trabajos. `quality`: instalación con `npm ci`, `npm run typecheck`, `npm run lint`, `npm run test:coverage`. `e2e`: instala Chromium, ejecuta `ALLOW_DB_RESET=true npm run db:reset -- --yes` contra la rama `test` de Neon (secretos `DATABASE_URL`, `DATABASE_URL_DIRECT`, `JWT_SECRET`) y lanza `npm run test:e2e`. Usa `concurrency` para que no haya dos ejecuciones E2E a la vez sobre la misma rama y sube el informe de Playwright como artefacto.
+> 1. `.github/workflows/ci.yml` con dos trabajos. `quality`: instalación con `npm ci`, `npm run typecheck`, `npm run lint`, `npm run test:coverage` y `npm audit --omit=dev --audit-level=high` (A06). Las vulnerabilidades de herramientas de desarrollo que dependan de Tailwind 3 se documentan como riesgo aceptado. `e2e`: instala Chromium, ejecuta `ALLOW_DB_RESET=true npm run db:reset -- --yes` contra la rama `test` de Neon (secretos `DATABASE_URL`, `DATABASE_URL_DIRECT`, `JWT_SECRET`) y lanza `npm run test:e2e`. Usa `concurrency` para que no haya dos ejecuciones E2E a la vez sobre la misma rama y sube el informe de Playwright como artefacto.
 > 2. `.github/workflows/snyk.yml` con el análisis de dependencias de Snyk (secreto `SNYK_TOKEN`) en cada *pull request* y de forma semanal.
 > 3. Publica la imagen Docker en GitHub Container Registry en cada fusión a `main`. El despliegue se describe en la Fase 5 (Render).
 > 4. Documenta en el README los secretos necesarios, la URL pública de la demo y que `main` debe exigir ambos trabajos antes de fusionar.
@@ -461,10 +481,10 @@ ALLOW_DB_RESET=true npm run db:reset -- --yes
 > Inicia la Fase 4 de experiencia de usuario clínica:
 >
 > 1. Crea o modifica `ProfileEditModal.vue` para editar el nombre, el tipo de perfil (combobox: sugerencias Mascota, Niño/a y Adulto más los tipos que el usuario ya haya creado; si escribe uno nuevo, se crea), el avatar y la ventana de correlación, con valores de 2, 6, 12, 24, 36 o 48 horas. Añade el onboarding «Crea tu primer calendario» para usuarios registrados sin perfil (solo si no se importó ninguno; pide únicamente nombre y tipo, el resto con valores por defecto) y el estado vacío del dock con «Añadir ítems de ejemplo». Añade la eliminación mediante `DELETE /api/profiles/:id` y deshabilítala cuando `!canDeleteProfile` (`profiles.length > 1` es la condición para poder borrar).
-> 2. En `AuthModal.vue`, añade la opción «Conservar y migrar datos locales existentes a mi cuenta». Si está activada, envía `guestData` en `POST /api/auth/register`; si está desactivada, no lo envíes y elimina los datos locales.
+> 2. En `AuthModal.vue`, añade la opción «Conservar y migrar datos locales existentes a mi cuenta». Si está activada, envía `guestData` en `POST /api/auth/register`; si está desactivada, no lo envíes y elimina los datos locales. Tras una respuesta correcta de `POST /api/auth/register`, en ambos casos, borra `@cuidat_guest_v1` y `@cuidat_guest_v1.corrupto` (ADR-020).
 > 3. Convierte el título del mes en un *popover* que permita saltar rápidamente entre meses y años, sin permitir meses futuros. Para invitados queda bloqueado con el aviso «Opción no disponible sin iniciar sesión.».
 > 4. Añade el selector `[1M | 2M | 3M]`. Los usuarios registrados podrán mostrar hasta tres meses. Renderiza instancias consecutivas de `CalendarGrid` en disposición apilada, permitiendo que las celdas crezcan sin ocultar tarjetas.
-> 5. Crea un panel o modal para filtrar correlaciones por periodo, síntomas y desencadenantes, y recalcular los resultados en tiempo real. Si el periodo supera los tres meses ya cargados, solicita al servidor el rango que falta.
+> 5. Crea un panel o modal para filtrar correlaciones por periodo, síntomas y desencadenantes, y recalcular los resultados en tiempo real. Las secciones «Vigilar posible patrón» y «Patrón detectado» ya muestran las coincidencias del mes visible desde la Fase 2; aquí se añade el filtro sobre ellas. Si el periodo supera los tres meses ya cargados, solicita al servidor el rango que falta.
 > 6. En la carga inicial, solicita únicamente los registros de los últimos tres meses.
 > 7. Crea la pantalla de gestión del catálogo con el ciclo de vida de la spec: edición según las reglas de versionado, sección «Archivados» con «Restaurar» y eliminación definitiva con recuento de registros y casilla de aceptación.
 > 8. Confirma que el diseño es responsivo (`lg`) y que ningún componente `.vue` supera las 180 líneas de código. El límite no se aplica a pruebas, stores, migraciones SQL ni configuración.
@@ -491,7 +511,7 @@ ALLOW_DB_RESET=true npm run db:reset -- --yes
 >
 > 1. Añade `GET /api/health`, que responda 200 sin tocar la base de datos y que no cuente para el límite de peticiones.
 > 2. Crea `render.yaml` en la raíz: un servicio `web` con `runtime: docker`, `dockerfilePath: ./server/Dockerfile`, `dockerContext: .`, `plan: free`, región de la UE, `healthCheckPath: /api/health`, `autoDeploy: true` y las variables `NODE_ENV=production` y `SERVE_CLIENT=true`; los secretos con `sync: false`.
-> 3. Haz que el contenedor ejecute `npm run db:migrate` (idempotente, con `DATABASE_URL_DIRECT`) antes de arrancar el servidor, porque el plan gratuito no tiene comando previo al despliegue, y que el servidor escuche en `process.env.PORT`.
+> 3. Haz que el contenedor ejecute `npm run db:migrate` (idempotente, con `DATABASE_URL_DIRECT`) antes de arrancar el servidor, porque el plan gratuito no tiene comando previo al despliegue, y que el servidor escuche en `process.env.PORT`. `tsx` es `devDependency`: la imagen debe conservarlo (o compilar las migraciones con `tsc`) para que `db:migrate` funcione en producción.
 > 4. En producción, `CLIENT_ORIGIN` usa `RENDER_EXTERNAL_URL` si no está definido, la cookie lleva `Secure`, y `VITE_API_URL` queda vacío para que el cliente use rutas relativas `/api`.
 > 5. Añade un flujo opcional `.github/workflows/keep-warm.yml`, programado cada 10 minutos, que haga una petición a `/api/health` de la URL pública (variable `PUBLIC_URL`). Déjalo desactivado por defecto y documenta que es opcional.
 > 6. Documenta en el README: la URL pública, que la primera carga puede tardar hasta un minuto, cómo probar el modo invitado y cómo registrarse, y el aviso de privacidad de los datos de la demo.

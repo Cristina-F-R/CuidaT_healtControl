@@ -18,10 +18,10 @@ BEGIN
         (u1, 'smoke-a@example.test', 'x'), (u2, 'smoke-b@example.test', 'x');
     INSERT INTO calendar_profiles (id, user_id, name, profile_type) VALUES
         (p1, u1, 'Moby', 'pet'), (p2, u2, 'Otra', 'adult');
-    INSERT INTO health_item_definitions (id, calendar_id, root_id, name, emoji, category) VALUES
-        (sym, p1, sym, 'Vómito', 'V', 'symptom'),
-        (trg, p1, trg, 'Pescado', 'P', 'trigger'),
-        (other, p2, other, 'Otro', 'O', 'trigger');
+    INSERT INTO health_item_definitions (id, calendar_id, root_id, name, emoji, category, track_intensity) VALUES
+        (sym, p1, sym, 'Vómito', 'V', 'symptom', TRUE),
+        (trg, p1, trg, 'Pescado', 'P', 'trigger', FALSE),  -- como en PRESET_ITEMS: sin intensidad
+        (other, p2, other, 'Otro', 'O', 'trigger', TRUE);
 
     -- Usuarios: email en minúsculas y único
     BEGIN INSERT INTO users (email, password_hash) VALUES ('Smoke@Example.test', 'x');
@@ -59,6 +59,18 @@ BEGIN
     INSERT INTO health_item_definitions (id, calendar_id, root_id, parent_id, name, emoji, category, track_duration)
         VALUES (sym_v2, p1, sym, sym, 'Vómito', 'V', 'symptom', TRUE);
 
+    -- Ítems: la categoría, las métricas y el linaje no cambian en sitio; una versión sustituida es terminal
+    BEGIN UPDATE health_item_definitions SET category = 'medication' WHERE id = trg;
+        RAISE EXCEPTION 'FAIL: cambio de categoría aceptado';
+    EXCEPTION WHEN check_violation THEN NULL; END;
+    BEGIN UPDATE health_item_definitions SET track_intensity = NOT track_intensity WHERE id = trg;
+        RAISE EXCEPTION 'FAIL: cambio de métricas en sitio aceptado';
+    EXCEPTION WHEN check_violation THEN NULL; END;
+    BEGIN UPDATE health_item_definitions SET status = 'active' WHERE id = sym;
+        RAISE EXCEPTION 'FAIL: versión sustituida reactivada';
+    EXCEPTION WHEN check_violation THEN NULL; END;
+    UPDATE health_item_definitions SET name = 'Vómito agudo' WHERE root_id = sym;  -- renombrar aplica a todo el linaje
+
     -- Padre o raíz de otro calendario: rechazado
     BEGIN INSERT INTO health_item_definitions (calendar_id, root_id, parent_id, name, emoji, category, status)
         VALUES (p1, sym, other, 'X', 'X', 'symptom', 'superseded');
@@ -86,6 +98,21 @@ BEGIN
     BEGIN INSERT INTO health_event_logs (calendar_id, item_definition_id, logged_at, notes) VALUES (p1, trg, NOW(), repeat('a', 301));
         RAISE EXCEPTION 'FAIL: nota de 301 caracteres aceptada';
     EXCEPTION WHEN string_data_right_truncation THEN NULL; END;
+
+    -- Métricas: solo las que la versión del ítem registra
+    BEGIN INSERT INTO health_event_logs (calendar_id, item_definition_id, logged_at, intensity) VALUES (p1, trg, NOW(), 2);
+        RAISE EXCEPTION 'FAIL: intensidad en un ítem que no la registra aceptada';
+    EXCEPTION WHEN check_violation THEN NULL; END;
+    INSERT INTO health_event_logs (calendar_id, item_definition_id, logged_at, duration_minutes)
+        VALUES (p1, sym_v2, NOW() - INTERVAL '1 hour', 30);  -- sym_v2 sí registra duración
+
+    -- Fecha futura y notas en blanco: rechazadas
+    BEGIN INSERT INTO health_event_logs (calendar_id, item_definition_id, logged_at) VALUES (p1, trg, NOW() + INTERVAL '1 day');
+        RAISE EXCEPTION 'FAIL: registro en el futuro aceptado';
+    EXCEPTION WHEN check_violation THEN NULL; END;
+    BEGIN INSERT INTO health_event_logs (calendar_id, item_definition_id, logged_at, notes) VALUES (p1, trg, NOW(), '   ');
+        RAISE EXCEPTION 'FAIL: nota formada solo por espacios aceptada';
+    EXCEPTION WHEN check_violation THEN NULL; END;
 
     -- Eliminación definitiva del linaje: borrar la raíz elimina versiones y registros
     DELETE FROM health_item_definitions WHERE id = sym AND calendar_id = p1;

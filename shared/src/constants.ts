@@ -11,6 +11,7 @@ export const NOTES_MAX_LENGTH = 300;
 export const GUEST_STORAGE_KEY = '@cuidat_guest_v1';
 export const SYNC_QUEUE_STORAGE_KEY = '@cuidat_sync_queue_v1';
 
+export const GUEST_MAX_PROFILES = 1;
 export const GUEST_MAX_SYMPTOMS = 3;
 /** Triggers and medication share this limit. */
 export const GUEST_MAX_TRIGGERS = 3;

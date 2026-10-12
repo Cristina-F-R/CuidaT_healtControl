@@ -144,7 +144,7 @@ Every `.vue` component must strictly observe the following block sequence:
   - Provide inline editing for profile name, profile type (combobox: suggestions Mascota / Niño/a / Adulto plus the user's own types, free typing creates a new one, sanitized, 1-50 chars), avatar emoji selector, color theme pills and correlation window.
   - Empty registered profile: dock empty state with the "Añadir ítems de ejemplo" action.
   - Delete action button must be disabled with tooltip when `!canDeleteProfile`.
-- Guest Gating: guests may hold at most 3 symptoms and 3 triggers/medication (`GUEST_MAX_SYMPTOMS`, `GUEST_MAX_TRIGGERS`; the 6 preset items fill them; archived items still count). Creating one more shows the same Toast/`AuthModal` action as locked navigation. Limits live in a single composable (`useGuestLimits.ts`).
+- Guest Gating: guests may hold at most 3 symptoms and 3 triggers/medication (`GUEST_MAX_SYMPTOMS`, `GUEST_MAX_TRIGGERS`; the 6 preset items fill them; archived items still count). Creating one more shows the same Toast/`AuthModal` action as locked navigation. Limits are defined in `shared/src/guestLimits.ts` and exposed to the UI by `useGuestLimits.ts`.
 - Catalog Manager (item create/edit/archive/delete):
   - Follows the lifecycle table of `TECH_SPEC.md` use case 9: `category` locked on edit; notice when `name`/`emoji` edits are retroactive; flags edit creates a new version.
   - "Archivar" is the primary option; "Eliminar definitivamente" is secondary, shows the number of logs to be erased and requires an explicit acceptance checkbox before enabling the `danger` button.
@@ -170,10 +170,10 @@ Every `.vue` component must strictly observe the following block sequence:
 
 ## 6. Defensive Security & GDPR Governance
 
-- Sanitization Protocol (Cross-Site Scripting - OWASP A03): Every string accepted from user-editable inputs must pass through `DOMPurify.sanitize()` prior to reactivity assignment or storage, and before length validation:
+- Sanitization Protocol (Cross-Site Scripting - OWASP A03): Every string accepted from user-editable inputs must pass through `sanitizeText()` (`client/src/application/sanitizeText.ts`) prior to reactivity assignment or storage, and before length validation. It runs DOMPurify and returns plain text; `DOMPurify.sanitize()` on its own returns HTML, so it must not be stored directly:
   ```typescript
-  import DOMPurify from 'dompurify';
-  const cleanNotes = DOMPurify.sanitize(rawNotes.trim());
+  import { sanitizeText } from '../../application/sanitizeText';
+  const cleanNotes = sanitizeText(rawNotes);
   ```
   The server only trims and validates length (Zod) and stores plain text. `v-html` is forbidden (ESLint `vue/no-v-html` as error); text is always rendered with interpolation.
 - Broken Access Control Mitigation (OWASP A01): Every database query MUST be scoped to the authenticated user inside repository abstractions. `users` and `calendar_profiles` filter directly by `user_id`; tables without `user_id` (`health_item_definitions`, `health_event_logs`) are always reached through a join:
