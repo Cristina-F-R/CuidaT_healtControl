@@ -1,0 +1,13 @@
+# Secrets never enter the image: the container receives them through compose (env_file) or Render.
+**/.env
+**/.env.*
+!**/.env.example
+**/node_modules
+**/dist
+**/coverage
+**/playwright-report
+**/test-results
+.git
+.husky
+.claude
+docs

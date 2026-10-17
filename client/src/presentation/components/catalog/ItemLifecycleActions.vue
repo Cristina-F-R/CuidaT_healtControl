@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { DomainRuleError } from '@cuidat/shared';
 import { onMounted, ref } from 'vue';
+import { userMessageOf } from '../../../application/errors';
 import { useItemDefinitionStore } from '../../../application/stores/useItemDefinitionStore';
 import { FOCUS_RING } from '../../categoryStyles';
 
@@ -20,7 +20,11 @@ const accepted = ref(false);
 const errorMessage = ref('');
 
 onMounted(async () => {
-  impact.value = await itemStore.getDeleteImpact(props.rootId);
+  try {
+    impact.value = await itemStore.getDeleteImpact(props.rootId);
+  } catch (error) {
+    errorMessage.value = userMessageOf(error);
+  }
 });
 
 async function run(action: () => Promise<void>): Promise<void> {
@@ -29,11 +33,7 @@ async function run(action: () => Promise<void>): Promise<void> {
     await action();
     emit('done');
   } catch (error) {
-    if (error instanceof DomainRuleError) {
-      errorMessage.value = error.message;
-      return;
-    }
-    throw error;
+    errorMessage.value = userMessageOf(error);
   }
 }
 

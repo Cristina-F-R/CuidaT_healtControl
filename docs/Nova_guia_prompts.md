@@ -275,12 +275,12 @@ export default defineConfig(
 
 ### 0.3. Neon y variables de entorno
 
-1. La base de datos de Neon es la rama principal y se usa directamente. Se crea y se llena con el esquema **una vez**, al final de la Fase 2 (sección 2.3; aún no hay usuarios reales).
+1. La base de datos de Neon es la rama principal (`main` en esta guía; en tu proyecto se llama `production`, el nombre no importa) y se usa directamente. Se crea y se llena con el esquema **una vez**, al final de la Fase 2 (sección 2.3; aún no hay usuarios reales).
 2. Copia de Neon las dos cadenas de conexión: la *pooled* (host con `-pooler`) y la directa.
 3. Crea `server/.env.example` y `client/.env.example` como en `TECH_SPEC.md`, sección 4, y copia el primero a `server/.env`. `JWT_SECRET` debe tener al menos 32 caracteres aleatorios (`openssl rand -base64 48`).
 4. Cuando el esquema esté creado y antes de tener usuarios reales, crea desde la rama principal las ramas `dev` (desarrollo) y `test` (E2E y CI). Heredan el esquema y se pueden reiniciar sin riesgo. A partir de ahí, `server/.env` apunta a `dev`.
 
-`DATABASE_URL` (pooled) lo usa la API. `DATABASE_URL_DIRECT` lo usan `db:migrate` y `db:reset`. No hay PostgreSQL local, así que `sslmode=require` funciona siempre.
+`DATABASE_URL` (pooled) lo usa la API. `DATABASE_URL_DIRECT` lo usan `db:migrate` y `db:reset`. No hay PostgreSQL local, así que `sslmode=verify-full` funciona siempre.
 
 ### 0.4. Prompt 0: inicialización del agente
 
@@ -374,6 +374,13 @@ En el **SQL Editor** de Neon, ejecuta en este orden (pega el contenido de cada a
 
 Después, crea las ramas `dev` y `test` desde `main` (paso 0.3.4) y comprueba que ambas tienen el esquema. Las migraciones de la Fase 3 se aplican sobre este mismo esquema.
 
+Pasos manuales en la consola de Neon (no los hace la IA):
+1. **Branches → Create branch**, origen `production` (la principal), nombre `dev`. Después, otro con nombre `test`.
+2. Cambia `server/.env` a los endpoints de `dev` (`DATABASE_URL` y `DATABASE_URL_DIRECT`). La URL de `production` se guarda aparte: la usará Render en la Fase 5.
+3. Opcional hasta la Fase 5: crea un proyecto de Sentry en la región UE y copia su DSN en `SENTRY_DSN`.
+
+`dev` lo necesita el smoke test del Prompt 3 y `test` lo necesitan los E2E de la Fase 3.1, así que estos pasos van antes de empezar la Fase 3.
+
 Qué comprueba la prueba de humo: email en minúsculas y único; `profile_type` no vacío (texto libre), `category`, ventanas, intensidad y duración válidos; notas no vacías; que un ítem, su padre, su raíz y un registro nunca referencien otro calendario; una sola versión vigente por ítem; que las métricas de un registro sean las de su versión; que no se registre en el futuro; que la categoría y las métricas de un ítem no cambien en sitio y que una versión sustituida no vuelva a estar vigente; que borrar la raíz elimine todo su linaje y sus registros; y que borrar el usuario elimine todo en cascada.
 
 Validación: los scripts se han comprobado en local con PGlite (PostgreSQL 18), que no es Neon. La comprobación definitiva es el paso 4 en Neon: si falla, no sigas a la Fase 3.
@@ -407,7 +414,7 @@ ALLOW_DB_RESET=true npm run db:reset -- --yes
 > 8. Configura `@sentry/node` con las mismas reglas de privacidad que el cliente (sin datos de salud, sin PII, solo el UUID del usuario).
 > 9. Comprueba que Husky ejecuta `lint-staged`, `npm run typecheck` y `npm run test:unit` en `pre-commit` y commitlint en `commit-msg`.
 > 10. Muestra la lista de rutas, los esquemas Zod y los errores de cada una antes de escribir los controladores.
-> 11. Cliente de autenticación: convierte `AuthModal.vue` (marcador de la Fase 2) en formulario de inicio de sesión y registro, con los esquemas Zod de `shared`. Al arrancar, llama a `GET /api/auth/me` para restaurar la sesión, y `AppHeader.vue` muestra «Modo Local» o «Sincronizado» según el caso. El interruptor de migración de datos llega en la Fase 4 (punto 2).
+> 11. Cliente de autenticación: convierte `AuthModal.vue` (marcador de la Fase 2) en formulario de inicio de sesión y registro, con los esquemas Zod de `shared`. Al arrancar, llama a `GET /api/auth/me` para restaurar la sesión. Hasta la Fase 3.2 el inicio de sesión solo cambia la sesión y el cabecero, que muestra la cuenta; los datos siguen en el navegador (modo local), porque los repositorios de API llegan en la 3.2 (ADR-007). El interruptor de migración de datos llega en la Fase 4 (punto 2).
 > 12. Requisitos OWASP Top 10 (2021) del servidor, además de los puntos anteriores:
 >     - **A03 Inyección:** todas las consultas con parámetros (`$1`, `$2`) del driver `pg`; ningún texto de usuario concatenado en SQL.
 >     - **A02 Fallos criptográficos:** bcrypt con coste de al menos 12; HTTPS en Render y cookie `Secure` en producción; `JWT_SECRET` aleatorio, nunca en el repositorio.
@@ -416,6 +423,20 @@ ALLOW_DB_RESET=true npm run db:reset -- --yes
 >     - **A09 Registro de eventos:** registrar eventos de seguridad (login fallido, registro, borrado de cuenta) con el UUID y sin email ni datos de salud, en la salida del servidor.
 >     - **A08 Integridad:** imagen Docker con versión de base fijada y `npm ci` con el lockfile; las acciones de GitHub se fijan a su SHA (Fase 3.3).
 >     - **Manejo de errores:** los errores no esperados devuelven un 500 genérico; el detalle solo va a Sentry, con el mismo filtrado de la Fase 1.
+
+
+> **Decisiones tomadas al implementar la Fase 3** (el código manda; esto las deja por escrito):
+> - El cuerpo JSON general admite 100 kB. Solo `POST /api/auth/register` admite 1 MB, porque lleva el calendario del invitado (hasta 5000 registros).
+> - `trust proxy` vale `1` (un salto: el router de Render), no `true`.
+> - El registro responde 409 `EMAIL_TAKEN` si el email ya existe. Es una enumeración aceptada a cambio de una experiencia clara; el límite por IP la acota. El login no la permite.
+> - El cliente de Sentry y el del servidor eliminan los valores de las excepciones antes de enviarlas: los mensajes de error de PostgreSQL pueden incluir la fila completa (por ejemplo, las notas).
+> - Las pruebas de integración usan PostgreSQL 18 en memoria (PGlite) a través de su servidor de socket, con el driver `pg` real. Los branches `dev` y `test` de Neon se usan solo para las pruebas E2E (desde la Fase 3.1).
+> - La imagen ejecuta `node dist/db/migrate.js` (compilado) antes de arrancar: `tsx` es devDependency y no está en la imagen de producción. Así se resuelve el punto de la Fase 5.
+> - `server/Dockerfile` usa `.dockerignore` para que ningún `.env` entre en la imagen.
+> - La imagen base se fija por versión exacta y digest (`ARG NODE_IMAGE=node:22.23.3-bookworm-slim@sha256:…`, A08). Para actualizarla: `docker buildx imagetools inspect node:22.x.y-bookworm-slim`.
+> - Punto 11, hasta la Fase 3.2: la sesión (`useAuthStore().user`) y el modo de datos (`authMode`) van por separado. Con sesión iniciada, `authMode` sigue en `guest`: repositorios locales, límites de invitado y la etiqueta «Modo Local». Si se alcanza un límite con sesión, el aviso es «Opción disponible cuando tus datos se sincronicen con tu cuenta.» (sin «Crear cuenta»). En la 3.2, el inicio de sesión pasará `authMode` a `authenticated`.
+> - Contradicción entre los puntos 4 y 11, resuelta así: el registro envía siempre el calendario local como `guestData` (la migración está activada hasta que la Fase 4 añada el interruptor) y **no** borra `@cuidat_guest_v1`. Borrarlo dejaría el calendario vacío, porque la Fase 3 no puede leer datos del servidor. El borrado tras el registro (ADR-020) llega con la Fase 3.2 o con el interruptor de la Fase 4.
+> - En desarrollo, Vite redirige `/api` a `http://localhost:3000`, así que `client/.env` no es obligatorio y `VITE_API_URL` queda vacío por defecto. La página y la API comparten origen, como en producción.
 
 ## Fase 3.1: sesión y derechos RGPD
 
@@ -434,6 +455,16 @@ ALLOW_DB_RESET=true npm run db:reset -- --yes
 > 5. Crea `playwright.config.ts` con `webServer` para cliente y servidor y la rama `test` de Neon.
 > 6. Escribe la prueba E2E `tests/e2e/account-deletion.spec.ts` con Playwright. Debe comprobar el registro e inicio de sesión, la apertura del modal, el bloqueo sin la palabra requerida, la confirmación correcta y el regreso de la interfaz a «Modo Local».
 > 7. Comprueba que `npm run typecheck`, `npm run lint` y `npm run test:e2e` finalizan correctamente.
+
+
+> **Decisiones tomadas al implementar la Fase 3.1:**
+> - La etiqueta de la cabecera (`useSyncStatus.ts`) indica dónde están los datos: depende de `authMode`, no solo de la sesión. Hasta la Fase 3.2, un usuario con sesión iniciada sigue viendo «Modo Local», porque sus datos aún están en el navegador. «Sincronizado» sería falso. «Pendiente (N)» ya está implementado y espera la cola de la 3.2.
+> - El «menú de perfil» es un menú de cuenta en la cabecera, junto al email, con «Descargar mis datos (JSON)», «Eliminar cuenta y datos» y «Cerrar sesión». En la app, «perfil» es cada calendario, y estas acciones afectan a la cuenta entera.
+> - La exportación lee todos los calendarios, con todas las versiones de cada ítem y sus registros, a través de los repositorios. Hasta la 3.2 exporta lo que el usuario ve, que son los datos locales. La copia que el servidor recibió al registrarse no se incluye. Con los repositorios de API, el mismo código exportará los datos del servidor.
+> - `DELETE /api/auth/account` responde 204 aunque el usuario ya no exista (borrado idempotente). Registra el evento `account_deleted` solo con el UUID.
+> - Tras el borrado, el cliente vacía los stores, borra `@cuidat_guest_v1` y `@cuidat_guest_v1.corrupto` y carga un calendario de invitado nuevo, sin recargar la página.
+> - Playwright levanta su propia API (puerto 3100, con `server/.env.test`) y su propio cliente (puerto 5180, con el proxy de Vite apuntando a 3100). Nunca reutiliza un servidor ya arrancado: la API de desarrollo del puerto 3000 apunta a la rama `dev`. En CI, las variables llegan como secretos; `dotenv` no las sobrescribe y la ausencia de `.env.test` no da error.
+> - `npm run typecheck` comprueba también `playwright.config.ts` y `tests/e2e` (`tsconfig.e2e.json`).
 
 ## Fase 3.2: API de datos y sincronización sin conexión
 
@@ -454,6 +485,20 @@ ALLOW_DB_RESET=true npm run db:reset -- --yes
 > 7. Configura `vite-plugin-pwa` (manifiesto, iconos y *service worker* con caché de la aplicación).
 > 8. Pruebas: Vitest para la cola y las reglas de catálogo, y `supertest` contra la rama `test` para la API (aislamiento entre usuarios, invariante del último perfil, fecha futura, idempotencia).
 > 9. Comprueba que `npm run typecheck`, `npm run lint` y `npm run test:unit` finalizan correctamente.
+
+
+> **Decisiones tomadas al implementar la Fase 3.2:**
+> - **Rutas del catálogo:** `:rootId` es el id de la primera versión del linaje. Editar, archivar, restaurar, el impacto y el borrado actúan sobre el linaje completo, y la respuesta devuelve todas sus versiones. Las reglas siguen siendo las funciones puras de `shared/src/catalog.ts`. El repositorio las ejecuta sobre el linaje bloqueado (`SELECT … FOR UPDATE`) y escribe la diferencia en una transacción, primero el `superseded` y después la versión nueva.
+> - **Puertos del cliente:** pasan a ser operaciones (`create`, `edit`, `archive`, `restore`, `deleteImpact`, `removeLineage`, `addPresets`) en lugar de «guardar la lista». Con la API, las reglas las aplica el servidor. Los repositorios locales aplican las mismas reglas de `shared`.
+> - **`authMode`** se deriva de la sesión. Los stores resuelven el repositorio en cada llamada (`currentRepositories()`), así que iniciar o cerrar sesión cambia el origen de los datos y recarga el espacio de trabajo.
+> - **Registro:** envía el calendario local como `guestData` y, tras una respuesta correcta, borra `@cuidat_guest_v1` y su copia (ADR-020). El interruptor para no migrar sigue en la Fase 4.
+> - **Cuenta sin calendarios:** hasta el onboarding de la Fase 4 se crea «Mi calendario» (tipo «Adulto»), vacío.
+> - **Registros que vienen de la cola:** `PUT /events/:id` acepta `deferred: true` para los registros grabados antes y enviados después (sin conexión o en reintentos). Esos se aceptan aunque su ítem esté archivado o sustituido, como pide el ADR-007. El primer envío inmediato con conexión va con `deferred: false`, y el servidor rechaza los ítems archivados. Un registro no puede cambiar de ítem.
+> - **Cola:** las entradas siguen la forma del ADR, con `userId`, `isNew` y `offline` en `payload`. La cola nunca fusiona una operación sobre otra que se está enviando, para que el acuse de recibo no borre una edición posterior. Las de otra cuenta no se envían. Un 429 se reintenta igual que un 5xx. Un 401 detiene el vaciado sin gastar intentos y pide iniciar sesión.
+> - **Caché sin conexión (`@cuidat_cache_v1`, IndexedDB):** guarda los últimos perfiles, ítems y registros leídos de la API, para que la PWA abra sin red. Es del usuario que la creó, y se borra al cerrar sesión y al eliminar la cuenta. El *service worker* solo guarda la aplicación, nunca respuestas de la API.
+> - **Cierre de sesión:** se rechaza mientras haya registros pendientes de sincronizar, para no perderlos.
+> - **Rangos:** la carga inicial pide los tres meses de calendario más la ventana máxima (48 h) anterior. Al navegar a un mes más antiguo se pide el tramo que falta. La exportación RGPD pide todo el historial.
+> - **Vitest:** `maxWorkers: 8`. En un checkout de WSL sobre `/mnt/c`, cada worker tarda segundos en arrancar, y con más en paralelo alguno superaba el tiempo de arranque. La ejecución fallaba de forma aleatoria, y con ella el `pre-commit`.
 
 ## Fase 3.3: CI, seguridad y calidad continua
 

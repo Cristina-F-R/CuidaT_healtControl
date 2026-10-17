@@ -5,6 +5,9 @@ import { defineConfig } from 'vitest/config';
 // Three projects (TECH_SPEC.md phase 2.1): the domain kernel and the API run in Node, the Vue client in jsdom.
 export default defineConfig({
   test: {
+    // Each worker takes seconds to start on a WSL /mnt/c checkout; too many at once exceed the
+    // pool start timeout. A small fixed pool is as fast and never flaky.
+    maxWorkers: 8,
     projects: [
       {
         test: {
@@ -14,10 +17,17 @@ export default defineConfig({
         },
       },
       {
+        // Source alias for the shared kernel, as in the client project.
+        resolve: {
+          alias: {
+            '@cuidat/shared': fileURLToPath(new URL('./shared/src/index.ts', import.meta.url)),
+          },
+        },
         test: {
           name: 'server',
           environment: 'node',
           include: ['server/src/**/*.test.ts'],
+          testTimeout: 20_000,
         },
       },
       {

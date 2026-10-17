@@ -113,7 +113,7 @@ Dependency rule: outer layers depend on inner layers, never the reverse. Busines
 | :--- | :--- | :--- |
 | `shared/src` | Domain kernel | Types, constants (`CORRELATION_WINDOWS`), Zod schemas, `correlation.ts`, `catalog.ts` (item edit rules), `time.ts`, `presets.ts`. No Vue/Express imports. |
 | `server/src/domain` | Domain | Entities, `AppError` hierarchy, repository interfaces (ports). |
-| `server/src/application` | Use cases | `RegisterUser`, `UpgradeGuestAccount`, `LogEvent`, `EditCatalogItem`, `DeleteAccount`... Depend on ports only. |
+| `server/src/application` | Use cases | `RegisterUser` (with the guest import), `LogEvent`, `EditCatalogItem`, `DeleteAccount`... Depend on ports only. |
 | `server/src/infrastructure` | Adapters | pg repositories, bcrypt/JWT adapters, migrations (`db/`), Sentry. |
 | `server/src/interfaces/http` | Delivery | Routes, controllers, Zod validation, middleware (auth, rate limit, error mapper). Composition root in `server/src/main.ts`. |
 | `client/src/application` | Use cases | Pinia stores, composables (`useCalendar`, `useInteraction`, `useMultiMonth`), sync use cases. Depend on repository ports. |
@@ -127,8 +127,9 @@ The store picks the repository implementation by `authMode` (`guest` -> local, `
 ## 4. Environment Configuration (.env.example)
 
 # Frontend (client/.env.example)
-# Development: API on another port. Production (single origin): leave empty, requests go to /api.
-VITE_API_URL=http://localhost:3000
+# Empty (default): requests go to /api on the same origin; in development the Vite proxy sends them
+# to http://localhost:3000. Set it only to call an API on another origin.
+VITE_API_URL=
 VITE_SENTRY_DSN=
 
 # Backend (server/.env.example)
@@ -138,9 +139,9 @@ CLIENT_ORIGIN=http://localhost:5173
 # true in the container image: Express serves client/dist and falls back to index.html
 SERVE_CLIENT=false
 # Neon pooled connection (host contains "-pooler"): used by the API at runtime
-DATABASE_URL=postgresql://USER:PASSWORD@ep-xxxx-pooler.REGION.aws.neon.tech/neondb?sslmode=require
+DATABASE_URL=postgresql://USER:PASSWORD@ep-xxxx-pooler.REGION.aws.neon.tech/neondb?sslmode=verify-full
 # Neon direct connection: used by db:migrate and db:reset
-DATABASE_URL_DIRECT=postgresql://USER:PASSWORD@ep-xxxx.REGION.aws.neon.tech/neondb?sslmode=require
+DATABASE_URL_DIRECT=postgresql://USER:PASSWORD@ep-xxxx.REGION.aws.neon.tech/neondb?sslmode=verify-full
 JWT_SECRET=replace_with_at_least_32_random_characters
 JWT_EXPIRES_IN=24h
 AUTH_RATE_LIMIT_MAX=20
@@ -297,7 +298,7 @@ export interface PatternThreshold {
 - ADR-009: Global Error Boundary
   - Decision: Implement Vue's `app.config.errorHandler` coupled with a fallback component to intercept uncaught exceptions, maintaining a robust and trustworthy user experience in a health-tracking context.
 - ADR-010: Neon-Only Persistence, Containerized Backend
-  - Decision: Neon is the only database, so there is no local PostgreSQL and no SSL mismatch (`sslmode=require` everywhere). The existing database is the `main` branch and is hard-reset once; `dev` (development) and `test` (E2E/CI, resettable) branches are created from `main` afterwards. `main` is never reset again. `server/Dockerfile` (build context: repo root, because of `shared`) and `docker-compose.yml` containerize the Express backend, reading `server/.env`.
+  - Decision: Neon is the only database, so there is no local PostgreSQL and no SSL mismatch (`sslmode=verify-full` everywhere: the server checks the certificate, not only the TLS channel). The existing database is the `main` branch and is hard-reset once; `dev` (development) and `test` (E2E/CI, resettable) branches are created from `main` afterwards. `main` is never reset again. `server/Dockerfile` (build context: repo root, because of `shared`) and `docker-compose.yml` containerize the Express backend, reading `server/.env`.
 - ADR-019: Single-Origin Deployment
   - Decision: Production runs as one container where Express serves both the API (`/api`) and the built SPA. Same origin means the `SameSite=Lax` session cookie works in every browser, no CORS in production and one URL to share. GitHub Pages is not used for the client because it cannot run the API and a different site would turn the cookie into a third-party cookie (blocked by Safari and Firefox). GitHub hosts the code, the CI/CD and the container registry; any host that runs a Docker image can serve it. Chosen host: Render free web service (Docker runtime, `render.yaml` blueprint, EU region, `healthCheckPath: /api/health`, auto-deploy from `main`). The free instance spins down after about 15 minutes without traffic and takes roughly a minute to wake up, so the README warns about it and a scheduled GitHub Actions request to `/api/health` may keep it warm. The container runs `db:migrate` (idempotent) before starting the server, because the free plan has no pre-deploy command. `CLIENT_ORIGIN` falls back to Render's `RENDER_EXTERNAL_URL` when unset.
 - ADR-011: Strict Quality Gates via Husky

@@ -27,7 +27,7 @@ export function useGuestLimits(): GuestLimits {
   function showLockedNotice(): void {
     showToast(GUEST_LOCKED_WARNING, {
       tone: 'warning',
-      action: { label: 'Crear cuenta', run: () => openOverlay({ kind: 'auth' }) },
+      action: { label: 'Crear cuenta', run: () => openOverlay({ kind: 'auth', mode: 'register' }) },
     });
   }
 

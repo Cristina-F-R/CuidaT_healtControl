@@ -1,19 +1,9 @@
-import {
-  archiveItem,
-  countLineageLogs,
-  createItemDefinition,
-  createPresetItems,
-  DomainRuleError,
-  editItem,
-  GUEST_LOCKED_WARNING,
-  isGuestItemLimitReached,
-  restoreItem,
-} from '@cuidat/shared';
+import { DomainRuleError, GUEST_LOCKED_WARNING, isGuestItemLimitReached } from '@cuidat/shared';
 import type { HealthItemDefinition, ItemDraft, ItemEditPatch } from '@cuidat/shared';
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import { createRepositories } from '../../infrastructure/repositories/createRepositories';
 import { sanitizeText } from '../sanitizeText';
+import { currentRepositories } from './currentRepositories';
 import { useAuthStore } from './useAuthStore';
 import { useEventStore } from './useEventStore';
 import { useProfileStore } from './useProfileStore';
@@ -23,7 +13,6 @@ export const useItemDefinitionStore = defineStore('itemDefinitions', () => {
   const authStore = useAuthStore();
   const profileStore = useProfileStore();
   const eventStore = useEventStore();
-  const repositories = createRepositories(authStore.authMode);
 
   const items = ref<HealthItemDefinition[]>([]);
 
@@ -42,17 +31,20 @@ export const useItemDefinitionStore = defineStore('itemDefinitions', () => {
   }
 
   async function loadItems(calendarId: string): Promise<void> {
-    items.value = await repositories.items.list(calendarId);
+    items.value = await currentRepositories().items.list(calendarId);
   }
 
-  /** First guest load: the sample catalog (TECH_SPEC.md section 1, presets). */
+  /** Replaces the versions of one lineage with the result of a catalog command. */
+  function replaceLineage(rootId: string, lineage: readonly HealthItemDefinition[]): void {
+    items.value = [...items.value.filter((item) => item.rootId !== rootId), ...lineage];
+  }
+
+  /** The sample catalog: seeded on the first guest load; «Añadir ítems de ejemplo» for accounts. */
   async function addPresetItems(calendarId: string): Promise<void> {
-    await repositories.items.save(createPresetItems(calendarId, () => crypto.randomUUID(), new Date()));
-  }
-
-  async function persist(next: readonly HealthItemDefinition[]): Promise<void> {
-    await repositories.items.save(next);
-    items.value = [...next];
+    const presets = await currentRepositories().items.addPresets(calendarId);
+    if (calendarId === profileStore.activeProfileId) {
+      items.value = [...items.value, ...presets];
+    }
   }
 
   async function createItem(draft: ItemDraft): Promise<HealthItemDefinition> {
@@ -60,13 +52,12 @@ export const useItemDefinitionStore = defineStore('itemDefinitions', () => {
     if (authStore.isGuest && isGuestItemLimitReached(items.value, calendarId, draft.category)) {
       throw new DomainRuleError('GUEST_LIMIT', GUEST_LOCKED_WARNING);
     }
-    const item = createItemDefinition(
-      calendarId,
-      { ...draft, name: sanitizeText(draft.name), emoji: sanitizeText(draft.emoji) },
-      crypto.randomUUID(),
-      new Date().toISOString(),
-    );
-    await persist([...items.value, item]);
+    const item = await currentRepositories().items.create(calendarId, {
+      ...draft,
+      name: sanitizeText(draft.name),
+      emoji: sanitizeText(draft.emoji),
+    });
+    items.value = [...items.value, item];
     return item;
   }
 
@@ -77,30 +68,29 @@ export const useItemDefinitionStore = defineStore('itemDefinitions', () => {
       name: patch.name === undefined ? undefined : sanitizeText(patch.name),
       emoji: patch.emoji === undefined ? undefined : sanitizeText(patch.emoji),
     };
-    await persist(
-      editItem(items.value, rootId, cleanPatch, { newId: crypto.randomUUID(), now: new Date().toISOString() }),
-    );
+    replaceLineage(rootId, await currentRepositories().items.edit(profileStore.activeProfileId, rootId, cleanPatch));
   }
 
   async function archiveItemLineage(rootId: string): Promise<void> {
-    await persist(archiveItem(items.value, rootId));
+    replaceLineage(rootId, await currentRepositories().items.archive(profileStore.activeProfileId, rootId));
   }
 
   async function restoreItemLineage(rootId: string): Promise<void> {
-    await persist(restoreItem(items.value, rootId));
+    replaceLineage(rootId, await currentRepositories().items.restore(profileStore.activeProfileId, rootId));
   }
 
   /** Number of logs a permanent deletion would erase (shown before the user accepts). */
   async function getDeleteImpact(rootId: string): Promise<number> {
-    const logs = await repositories.events.list(profileStore.activeProfileId);
-    return countLineageLogs(items.value, logs, rootId);
+    return currentRepositories().items.deleteImpact(profileStore.activeProfileId, rootId);
   }
 
   async function deleteItemLineage(rootId: string): Promise<void> {
     const calendarId = profileStore.activeProfileId;
-    await repositories.items.removeLineage(calendarId, rootId);
-    await loadItems(calendarId);
-    await eventStore.loadLogs(calendarId);
+    const versionIds = new Set(items.value.filter((item) => item.rootId === rootId).map((item) => item.id));
+    await currentRepositories().items.removeLineage(calendarId, rootId);
+    items.value = items.value.filter((item) => item.rootId !== rootId);
+    // The cascade also took the logs of every version.
+    eventStore.logs = eventStore.logs.filter((log) => !versionIds.has(log.itemDefinitionId));
   }
 
   function resetState(): void {

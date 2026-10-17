@@ -1,0 +1,15 @@
+# Local run of the production image against Neon (no local PostgreSQL, ADR-010).
+#   docker compose up --build   ->   http://localhost:3000
+services:
+  app:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    env_file: server/.env
+    environment:
+      NODE_ENV: production
+      SERVE_CLIENT: "true"
+      # Single origin in this run: the page and the API are both on port 3000.
+      CLIENT_ORIGIN: http://localhost:3000
+    ports:
+      - "3000:3000"

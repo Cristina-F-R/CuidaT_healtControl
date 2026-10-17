@@ -75,3 +75,15 @@ export function upsertById<T extends { id: string }>(rows: readonly T[], row: T)
     ? rows.map((existing) => (existing.id === row.id ? row : existing))
     : [...rows, row];
 }
+
+/** Removes the guest document and its backup (ADR-020: after account deletion). */
+export function clearGuestStorage(storage: Storage = window.localStorage): void {
+  storage.removeItem(GUEST_STORAGE_KEY);
+  storage.removeItem(GUEST_BACKUP_KEY);
+}
+
+/** The guest calendar to import on registration, or `null` when there is nothing stored. */
+export function readGuestDataForImport(storage: GuestStorage = new GuestStorage()): GuestDocument | null {
+  const document = storage.read();
+  return document.profiles.length > 0 ? document : null;
+}

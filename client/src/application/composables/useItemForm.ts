@@ -2,6 +2,7 @@ import { DomainRuleError } from '@cuidat/shared';
 import type { ItemCategory } from '@cuidat/shared';
 import { ref } from 'vue';
 import type { Ref } from 'vue';
+import { userMessageOf } from '../errors';
 import { useItemDefinitionStore } from '../stores/useItemDefinitionStore';
 import { useGuestLimits } from './useGuestLimits';
 
@@ -45,11 +46,11 @@ export function useItemForm(rootId: string | null): ItemForm {
       }
       return true;
     } catch (error) {
-      if (error instanceof DomainRuleError && error.code !== 'GUEST_LIMIT') {
-        errorMessage.value = error.message;
+      if (error instanceof DomainRuleError && error.code === 'GUEST_LIMIT') {
+        guestLimits.handleStoreError(error);
         return false;
       }
-      guestLimits.handleStoreError(error);
+      errorMessage.value = userMessageOf(error);
       return false;
     }
   }
