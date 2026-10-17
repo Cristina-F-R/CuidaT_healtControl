@@ -14,10 +14,17 @@ export default defineConfig({
         },
       },
       {
+        // Source alias for the shared kernel, as in the client project.
+        resolve: {
+          alias: {
+            '@cuidat/shared': fileURLToPath(new URL('./shared/src/index.ts', import.meta.url)),
+          },
+        },
         test: {
           name: 'server',
           environment: 'node',
           include: ['server/src/**/*.test.ts'],
+          testTimeout: 20_000,
         },
       },
       {

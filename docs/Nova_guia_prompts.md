@@ -275,12 +275,12 @@ export default defineConfig(
 
 ### 0.3. Neon y variables de entorno
 
-1. La base de datos de Neon es la rama principal y se usa directamente. Se crea y se llena con el esquema **una vez**, al final de la Fase 2 (sección 2.3; aún no hay usuarios reales).
+1. La base de datos de Neon es la rama principal (`main` en esta guía; en tu proyecto se llama `production`, el nombre no importa) y se usa directamente. Se crea y se llena con el esquema **una vez**, al final de la Fase 2 (sección 2.3; aún no hay usuarios reales).
 2. Copia de Neon las dos cadenas de conexión: la *pooled* (host con `-pooler`) y la directa.
 3. Crea `server/.env.example` y `client/.env.example` como en `TECH_SPEC.md`, sección 4, y copia el primero a `server/.env`. `JWT_SECRET` debe tener al menos 32 caracteres aleatorios (`openssl rand -base64 48`).
 4. Cuando el esquema esté creado y antes de tener usuarios reales, crea desde la rama principal las ramas `dev` (desarrollo) y `test` (E2E y CI). Heredan el esquema y se pueden reiniciar sin riesgo. A partir de ahí, `server/.env` apunta a `dev`.
 
-`DATABASE_URL` (pooled) lo usa la API. `DATABASE_URL_DIRECT` lo usan `db:migrate` y `db:reset`. No hay PostgreSQL local, así que `sslmode=require` funciona siempre.
+`DATABASE_URL` (pooled) lo usa la API. `DATABASE_URL_DIRECT` lo usan `db:migrate` y `db:reset`. No hay PostgreSQL local, así que `sslmode=verify-full` funciona siempre.
 
 ### 0.4. Prompt 0: inicialización del agente
 
@@ -374,6 +374,13 @@ En el **SQL Editor** de Neon, ejecuta en este orden (pega el contenido de cada a
 
 Después, crea las ramas `dev` y `test` desde `main` (paso 0.3.4) y comprueba que ambas tienen el esquema. Las migraciones de la Fase 3 se aplican sobre este mismo esquema.
 
+Pasos manuales en la consola de Neon (no los hace la IA):
+1. **Branches → Create branch**, origen `production` (la principal), nombre `dev`. Después, otro con nombre `test`.
+2. Cambia `server/.env` a los endpoints de `dev` (`DATABASE_URL` y `DATABASE_URL_DIRECT`). La URL de `production` se guarda aparte: la usará Render en la Fase 5.
+3. Opcional hasta la Fase 5: crea un proyecto de Sentry en la región UE y copia su DSN en `SENTRY_DSN`.
+
+`dev` lo necesita el smoke test del Prompt 3 y `test` lo necesitan los E2E de la Fase 3.1, así que estos pasos van antes de empezar la Fase 3.
+
 Qué comprueba la prueba de humo: email en minúsculas y único; `profile_type` no vacío (texto libre), `category`, ventanas, intensidad y duración válidos; notas no vacías; que un ítem, su padre, su raíz y un registro nunca referencien otro calendario; una sola versión vigente por ítem; que las métricas de un registro sean las de su versión; que no se registre en el futuro; que la categoría y las métricas de un ítem no cambien en sitio y que una versión sustituida no vuelva a estar vigente; que borrar la raíz elimine todo su linaje y sus registros; y que borrar el usuario elimine todo en cascada.
 
 Validación: los scripts se han comprobado en local con PGlite (PostgreSQL 18), que no es Neon. La comprobación definitiva es el paso 4 en Neon: si falla, no sigas a la Fase 3.
@@ -407,7 +414,7 @@ ALLOW_DB_RESET=true npm run db:reset -- --yes
 > 8. Configura `@sentry/node` con las mismas reglas de privacidad que el cliente (sin datos de salud, sin PII, solo el UUID del usuario).
 > 9. Comprueba que Husky ejecuta `lint-staged`, `npm run typecheck` y `npm run test:unit` en `pre-commit` y commitlint en `commit-msg`.
 > 10. Muestra la lista de rutas, los esquemas Zod y los errores de cada una antes de escribir los controladores.
-> 11. Cliente de autenticación: convierte `AuthModal.vue` (marcador de la Fase 2) en formulario de inicio de sesión y registro, con los esquemas Zod de `shared`. Al arrancar, llama a `GET /api/auth/me` para restaurar la sesión, y `AppHeader.vue` muestra «Modo Local» o «Sincronizado» según el caso. El interruptor de migración de datos llega en la Fase 4 (punto 2).
+> 11. Cliente de autenticación: convierte `AuthModal.vue` (marcador de la Fase 2) en formulario de inicio de sesión y registro, con los esquemas Zod de `shared`. Al arrancar, llama a `GET /api/auth/me` para restaurar la sesión. Hasta la Fase 3.2 el inicio de sesión solo cambia la sesión y el cabecero, que muestra la cuenta; los datos siguen en el navegador (modo local), porque los repositorios de API llegan en la 3.2 (ADR-007). El interruptor de migración de datos llega en la Fase 4 (punto 2).
 > 12. Requisitos OWASP Top 10 (2021) del servidor, además de los puntos anteriores:
 >     - **A03 Inyección:** todas las consultas con parámetros (`$1`, `$2`) del driver `pg`; ningún texto de usuario concatenado en SQL.
 >     - **A02 Fallos criptográficos:** bcrypt con coste de al menos 12; HTTPS en Render y cookie `Secure` en producción; `JWT_SECRET` aleatorio, nunca en el repositorio.
@@ -416,6 +423,16 @@ ALLOW_DB_RESET=true npm run db:reset -- --yes
 >     - **A09 Registro de eventos:** registrar eventos de seguridad (login fallido, registro, borrado de cuenta) con el UUID y sin email ni datos de salud, en la salida del servidor.
 >     - **A08 Integridad:** imagen Docker con versión de base fijada y `npm ci` con el lockfile; las acciones de GitHub se fijan a su SHA (Fase 3.3).
 >     - **Manejo de errores:** los errores no esperados devuelven un 500 genérico; el detalle solo va a Sentry, con el mismo filtrado de la Fase 1.
+
+
+> **Decisiones tomadas al implementar la Fase 3** (el código manda; esto las deja por escrito):
+> - El cuerpo JSON general admite 100 kB. Solo `POST /api/auth/register` admite 1 MB, porque lleva el calendario del invitado (hasta 5000 registros).
+> - `trust proxy` vale `1` (un salto: el router de Render), no `true`.
+> - El registro responde 409 `EMAIL_TAKEN` si el email ya existe. Es una enumeración aceptada a cambio de una experiencia clara; el límite por IP la acota. El login no la permite.
+> - El cliente de Sentry y el del servidor eliminan los valores de las excepciones antes de enviarlas: los mensajes de error de PostgreSQL pueden incluir la fila completa (por ejemplo, las notas).
+> - Las pruebas de integración usan PostgreSQL 18 en memoria (PGlite) a través de su servidor de socket, con el driver `pg` real. Los branches `dev` y `test` de Neon se usan solo para las pruebas E2E (Fase 3.3).
+> - La imagen ejecuta `node dist/db/migrate.js` (compilado) antes de arrancar: `tsx` es devDependency y no está en la imagen de producción. Así se resuelve el punto de la Fase 5.
+> - `server/Dockerfile` usa `.dockerignore` para que ningún `.env` entre en la imagen.
 
 ## Fase 3.1: sesión y derechos RGPD
 
