@@ -11,7 +11,7 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "db:migrate": "npm run db:migrate -w server",
-    "db:reset": "npm run db:reset -w server",
+    "db:reset": "npm run db:reset -w server --",
     "prepare": "husky"
   },
   "private": true,
