@@ -8,15 +8,18 @@ import type { AppConfig } from '../../config/env.js';
 import { NotFoundError } from '../../domain/errors.js';
 import type { SessionTokens } from '../../domain/ports.js';
 import type { AccountDependencies } from '../../application/auth/accounts.js';
+import type { DataDependencies } from '../../application/data/dataDependencies.js';
 import type { Logger } from '../../infrastructure/observability/logger.js';
 import { errorHandler } from './middleware/errors.js';
 import { requireSameSiteClient } from './middleware/guards.js';
 import { apiRateLimit } from './middleware/rateLimits.js';
 import { authRouter } from './routes/authRoutes.js';
+import { dataRouter } from './routes/dataRoutes.js';
 
 export interface AppDependencies {
   config: AppConfig;
   account: AccountDependencies;
+  data: DataDependencies;
   sessions: SessionTokens;
   logger: Logger;
   reportError: (error: unknown) => void;
@@ -71,6 +74,7 @@ export function createApp(deps: AppDependencies): Express {
   app.use('/api', (req: Request, res: Response, next: NextFunction) => (req.path === '/auth/register' ? next() : jsonParser(req, res, next)));
 
   app.use('/api/auth', authRouter({ config, account: deps.account, sessions: deps.sessions, logger }));
+  app.use('/api/profiles', dataRouter(deps.data, deps.sessions));
   app.use('/api', (_req: Request, _res: Response, next: NextFunction) => next(new NotFoundError('La ruta no existe.')));
 
   if (config.serveClient && deps.clientDir) {

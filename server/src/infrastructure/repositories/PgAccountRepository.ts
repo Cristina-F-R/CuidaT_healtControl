@@ -106,6 +106,21 @@ export class PgAccountRepository implements AccountRepository {
       client.release();
     }
   }
+
+  async deleteAccount(id: string): Promise<boolean> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const deleted = await client.query('DELETE FROM users WHERE id = $1', [id]);
+      await client.query('COMMIT');
+      return (deleted.rowCount ?? 0) > 0;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
 }
 
 function isUniqueViolation(error: unknown): boolean {

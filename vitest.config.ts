@@ -5,6 +5,9 @@ import { defineConfig } from 'vitest/config';
 // Three projects (TECH_SPEC.md phase 2.1): the domain kernel and the API run in Node, the Vue client in jsdom.
 export default defineConfig({
   test: {
+    // Each worker takes seconds to start on a WSL /mnt/c checkout; too many at once exceed the
+    // pool start timeout. A small fixed pool is as fast and never flaky.
+    maxWorkers: 8,
     projects: [
       {
         test: {

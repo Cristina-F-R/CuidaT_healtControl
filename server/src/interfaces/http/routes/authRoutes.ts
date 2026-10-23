@@ -4,7 +4,7 @@ import { loginBodySchema, registerBodySchema } from '@cuidat/shared';
 import type { AppConfig } from '../../../config/env.js';
 import { UnauthorizedError } from '../../../domain/errors.js';
 import type { SessionTokens } from '../../../domain/ports.js';
-import { loginAccount, getAccount, registerAccount } from '../../../application/auth/accounts.js';
+import { deleteAccount, loginAccount, getAccount, registerAccount } from '../../../application/auth/accounts.js';
 import type { AccountDependencies } from '../../../application/auth/accounts.js';
 import type { Logger } from '../../../infrastructure/observability/logger.js';
 import { authRateLimit } from '../middleware/rateLimits.js';
@@ -27,6 +27,11 @@ function cookieOptions(config: AppConfig): CookieOptions {
 
 function setSessionCookie(res: Response, config: AppConfig, token: string): void {
   res.cookie(SESSION_COOKIE, token, { ...cookieOptions(config), maxAge: config.jwtExpiresInSeconds * 1000 });
+}
+
+/** Set by requireSession, which runs before every handler that calls this. */
+function sessionUserId(res: Response): string {
+  return typeof res.locals['userId'] === 'string' ? res.locals['userId'] : '';
 }
 
 export function authRouter(deps: AuthRouteDependencies): Router {
@@ -64,8 +69,16 @@ export function authRouter(deps: AuthRouteDependencies): Router {
   });
 
   router.get('/me', requireSession(sessions), async (_req, res) => {
-    const userId = typeof res.locals['userId'] === 'string' ? res.locals['userId'] : '';
-    res.json({ user: await getAccount(account, userId) });
+    res.json({ user: await getAccount(account, sessionUserId(res)) });
+  });
+
+  // GDPR Art. 17. Rate limited by the general API limit (100 per minute), not the login one.
+  router.delete('/account', requireSession(sessions), async (_req, res) => {
+    const userId = sessionUserId(res);
+    await deleteAccount(account, userId);
+    logger.security('account_deleted', { userId });
+    res.clearCookie(SESSION_COOKIE, cookieOptions(config));
+    res.status(204).end();
   });
 
   return router;

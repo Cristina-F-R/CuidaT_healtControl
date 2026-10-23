@@ -4,6 +4,7 @@ import { useOverlays } from '../../../application/composables/useOverlays';
 import type { EventLogCreateOverlay, EventLogEditOverlay } from '../../../application/composables/useOverlays';
 import ItemManagerModal from '../catalog/ItemManagerModal.vue';
 import AuthModal from '../auth/AuthModal.vue';
+import DeleteAccountModal from '../auth/DeleteAccountModal.vue';
 import DaySummaryModal from '../logs/DaySummaryModal.vue';
 import EventLogModal from '../logs/EventLogModal.vue';
 
@@ -29,5 +30,9 @@ const daySummaryDayKey = computed<string | null>(() =>
     :day-key="daySummaryDayKey"
   />
   <ItemManagerModal v-else-if="topOverlay?.kind === 'itemManager'" />
-  <AuthModal v-else-if="topOverlay?.kind === 'auth'" />
+  <AuthModal
+    v-else-if="topOverlay?.kind === 'auth'"
+    :initial-mode="topOverlay.mode"
+  />
+  <DeleteAccountModal v-else-if="topOverlay?.kind === 'deleteAccount'" />
 </template>

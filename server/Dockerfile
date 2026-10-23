@@ -1,7 +1,11 @@
 # Build from the repository root: the image needs the shared kernel, the web client and the API.
 #   docker build -f server/Dockerfile -t cuidat .
 
-FROM node:22-bookworm-slim AS build
+# OWASP A08: exact version plus digest, so a rebuild cannot pull a different base image.
+# To update: docker buildx imagetools inspect node:22.x.y-bookworm-slim
+ARG NODE_IMAGE=node:22.23.3-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392
+
+FROM ${NODE_IMAGE} AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY shared/package.json shared/
@@ -14,7 +18,7 @@ COPY server server
 RUN npm run build -w shared && npm run build -w client && npm run build -w server \
  && npm prune --omit=dev
 
-FROM node:22-bookworm-slim AS runtime
+FROM ${NODE_IMAGE} AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build /app/package.json /app/package-lock.json ./

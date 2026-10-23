@@ -3,6 +3,9 @@ import { fileURLToPath } from 'node:url';
 import { loadConfig } from './config/env.js';
 import { createApp } from './interfaces/http/app.js';
 import { PgAccountRepository } from './infrastructure/repositories/PgAccountRepository.js';
+import { PgEventRepository } from './infrastructure/repositories/PgEventRepository.js';
+import { PgItemRepository } from './infrastructure/repositories/PgItemRepository.js';
+import { PgProfileRepository } from './infrastructure/repositories/PgProfileRepository.js';
 import { BcryptPasswordHasher } from './infrastructure/security/BcryptPasswordHasher.js';
 import { JwtSessionTokens } from './infrastructure/security/JwtSessionTokens.js';
 import { consoleLogger } from './infrastructure/observability/logger.js';
@@ -19,6 +22,13 @@ const app = createApp({
   account: {
     accounts: new PgAccountRepository(pool),
     hasher: new BcryptPasswordHasher(),
+    clock: () => new Date(),
+    newId: () => crypto.randomUUID(),
+  },
+  data: {
+    profiles: new PgProfileRepository(pool),
+    items: new PgItemRepository(pool),
+    events: new PgEventRepository(pool),
     clock: () => new Date(),
     newId: () => crypto.randomUUID(),
   },

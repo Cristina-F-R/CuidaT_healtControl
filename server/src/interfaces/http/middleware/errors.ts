@@ -1,7 +1,7 @@
 import type { ErrorRequestHandler } from 'express';
 import { ZodError } from 'zod';
 import { DomainRuleError } from '@cuidat/shared';
-import { AppError, NotFoundError } from '../../../domain/errors.js';
+import { AppError } from '../../../domain/errors.js';
 import type { Logger } from '../../../infrastructure/observability/logger.js';
 
 interface ErrorBody {
@@ -61,11 +61,5 @@ export function errorHandler(logger: Logger, report: (error: unknown) => void): 
     logger.unexpected(error);
     report(error);
     res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor.' } });
-  };
-}
-
-export function notFoundHandler(): ErrorRequestHandler {
-  return (_error, _req, _res, next): void => {
-    next(new NotFoundError('La ruta no existe.'));
   };
 }

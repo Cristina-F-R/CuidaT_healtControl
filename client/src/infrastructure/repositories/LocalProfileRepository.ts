@@ -1,7 +1,7 @@
-import type { CalendarProfile } from '@cuidat/shared';
+import { createCalendarProfile } from '@cuidat/shared';
+import type { CalendarProfile, ProfileDraft } from '@cuidat/shared';
 import type { ProfileRepository } from '../../application/ports/repositories';
 import type { GuestStorage } from './guestStorage';
-import { upsertById } from './guestStorage';
 
 export class LocalProfileRepository implements ProfileRepository {
   private readonly guest: GuestStorage;
@@ -14,10 +14,12 @@ export class LocalProfileRepository implements ProfileRepository {
     return this.guest.read().profiles;
   }
 
-  async save(profile: CalendarProfile): Promise<void> {
+  async create(draft: ProfileDraft): Promise<CalendarProfile> {
+    const profile = createCalendarProfile(draft, crypto.randomUUID(), new Date().toISOString());
     const document = this.guest.read();
-    document.profiles = upsertById(document.profiles, profile);
+    document.profiles = [...document.profiles, profile];
     this.guest.write(document);
+    return profile;
   }
 
   async remove(profileId: string): Promise<void> {

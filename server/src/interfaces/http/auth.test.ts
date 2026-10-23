@@ -167,6 +167,38 @@ describe('authentication API', () => {
     expect(cookieOf(response)).toMatch(/cuidat_session=;/);
   });
 
+  it('deletes the account and its whole calendar in cascade, and clears the session (GDPR Art. 17)', async () => {
+    const registered = await post(app, '/api/auth/register').send({ email: 'olvido@example.test', password: PASSWORD, guestData: guestFixture() });
+    const other = await post(app, '/api/auth/register').send({ email: 'otra@example.test', password: PASSWORD, guestData: guestFixture() });
+    expect(other.status).toBe(201);
+    const session = cookieOf(registered)!;
+
+    const response = await request(app).delete('/api/auth/account').set('X-CuidaT-Client', 'web').set('Origin', TEST_ORIGIN).set('Cookie', session);
+    expect(response.status).toBe(204);
+    expect(cookieOf(response)).toMatch(/cuidat_session=;/);
+
+    const users = await db.pool.query<{ email: string }>('SELECT email FROM users');
+    expect(users.rows).toEqual([{ email: 'otra@example.test' }]);
+    // Only the other user's calendar is left: one profile, six items, one log.
+    expect((await db.pool.query('SELECT id FROM calendar_profiles')).rows).toHaveLength(1);
+    expect((await db.pool.query('SELECT id FROM health_item_definitions')).rows).toHaveLength(6);
+    expect((await db.pool.query('SELECT id FROM health_event_logs')).rows).toHaveLength(1);
+
+    // The old token no longer opens a session and the credentials no longer work.
+    expect((await request(app).get('/api/auth/me').set('Cookie', session)).status).toBe(401);
+    expect((await post(app, '/api/auth/login').send({ email: 'olvido@example.test', password: PASSWORD })).status).toBe(401);
+  });
+
+  it('refuses account deletion without a session or without the CSRF header', async () => {
+    const registered = await post(app, '/api/auth/register').send({ email: 'csrf@example.test', password: PASSWORD });
+    const session = cookieOf(registered)!;
+
+    expect((await request(app).delete('/api/auth/account').set('X-CuidaT-Client', 'web').set('Origin', TEST_ORIGIN)).status).toBe(401);
+    expect((await request(app).delete('/api/auth/account').set('Origin', TEST_ORIGIN).set('Cookie', session)).status).toBe(403);
+    expect((await request(app).delete('/api/auth/account').set('X-CuidaT-Client', 'web').set('Origin', 'https://evil.example').set('Cookie', session)).status).toBe(403);
+    expect((await db.pool.query('SELECT id FROM users')).rows).toHaveLength(1);
+  });
+
   it('answers unknown API routes with JSON 404 and sends security headers', async () => {
     const response = await request(app).get('/api/no-existe');
     expect(response.status).toBe(404);

@@ -1,19 +1,13 @@
-import {
-  createCalendarProfile,
-  DomainRuleError,
-  GUEST_LOCKED_WARNING,
-  isGuestProfileLimitReached,
-} from '@cuidat/shared';
+import { DomainRuleError, GUEST_LOCKED_WARNING, isGuestProfileLimitReached } from '@cuidat/shared';
 import type { CalendarProfile, ProfileDraft } from '@cuidat/shared';
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import { createRepositories } from '../../infrastructure/repositories/createRepositories';
 import { sanitizeText } from '../sanitizeText';
+import { currentRepositories } from './currentRepositories';
 import { useAuthStore } from './useAuthStore';
 
 export const useProfileStore = defineStore('profiles', () => {
   const authStore = useAuthStore();
-  const repositories = createRepositories(authStore.authMode);
 
   const profiles = ref<CalendarProfile[]>([]);
   const activeProfileId = ref<string>('');
@@ -30,7 +24,7 @@ export const useProfileStore = defineStore('profiles', () => {
   const canDeleteProfile = computed(() => profiles.value.length > 1);
 
   async function loadProfiles(): Promise<void> {
-    profiles.value = await repositories.profiles.list();
+    profiles.value = await currentRepositories().profiles.list();
     if (!profiles.value.some((profile) => profile.id === activeProfileId.value)) {
       activeProfileId.value = profiles.value[0]?.id ?? '';
     }
@@ -40,16 +34,11 @@ export const useProfileStore = defineStore('profiles', () => {
     if (authStore.isGuest && isGuestProfileLimitReached(profiles.value)) {
       throw new DomainRuleError('GUEST_LIMIT', GUEST_LOCKED_WARNING);
     }
-    const profile = createCalendarProfile(
-      {
-        ...draft,
-        name: sanitizeText(draft.name),
-        profileType: sanitizeText(draft.profileType),
-      },
-      crypto.randomUUID(),
-      new Date().toISOString(),
-    );
-    await repositories.profiles.save(profile);
+    const profile = await currentRepositories().profiles.create({
+      ...draft,
+      name: sanitizeText(draft.name),
+      profileType: sanitizeText(draft.profileType),
+    });
     profiles.value = [...profiles.value, profile];
     activeProfileId.value = activeProfileId.value || profile.id;
     return profile;
@@ -59,7 +48,7 @@ export const useProfileStore = defineStore('profiles', () => {
     if (!canDeleteProfile.value) {
       throw new DomainRuleError('PROFILE_LAST', 'No se puede eliminar el último calendario.');
     }
-    await repositories.profiles.remove(profileId);
+    await currentRepositories().profiles.remove(profileId);
     await loadProfiles();
   }
 

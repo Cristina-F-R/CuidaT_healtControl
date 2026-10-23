@@ -1,8 +1,9 @@
-import { DAY_PART_PRESETS, DomainRuleError } from '@cuidat/shared';
+import { DAY_PART_PRESETS } from '@cuidat/shared';
 import type { HealthItemDefinition, Intensity } from '@cuidat/shared';
 import dayjs from 'dayjs';
 import { computed, ref } from 'vue';
 import type { ComputedRef, Ref } from 'vue';
+import { userMessageOf } from '../errors';
 import { useEventStore } from '../stores/useEventStore';
 import { useItemDefinitionStore } from '../stores/useItemDefinitionStore';
 import { useProfileStore } from '../stores/useProfileStore';
@@ -85,11 +86,8 @@ export function useEventLogForm(request: EventLogCreateOverlay | EventLogEditOve
       });
       return true;
     } catch (error) {
-      if (error instanceof DomainRuleError) {
-        errorMessage.value = error.message;
-        return false;
-      }
-      throw error;
+      errorMessage.value = userMessageOf(error);
+      return false;
     }
   }
 

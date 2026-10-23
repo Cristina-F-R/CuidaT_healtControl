@@ -8,11 +8,14 @@ import type { AppConfig } from '../../src/config/env.js';
 import { createApp } from '../../src/interfaces/http/app.js';
 import type { Logger } from '../../src/infrastructure/observability/logger.js';
 import { PgAccountRepository } from '../../src/infrastructure/repositories/PgAccountRepository.js';
+import { PgEventRepository } from '../../src/infrastructure/repositories/PgEventRepository.js';
+import { PgItemRepository } from '../../src/infrastructure/repositories/PgItemRepository.js';
+import { PgProfileRepository } from '../../src/infrastructure/repositories/PgProfileRepository.js';
 import { BcryptPasswordHasher } from '../../src/infrastructure/security/BcryptPasswordHasher.js';
 import { JwtSessionTokens } from '../../src/infrastructure/security/JwtSessionTokens.js';
 
 // Real PostgreSQL 18 (PGlite, in memory) behind the socket protocol, so the `pg` driver and the SQL
-// are exercised for real. The Neon dev/test branches are used only for the E2E suites (Phase 3.3).
+// are exercised for real. The Neon dev/test branches are used only for the E2E suites (from Phase 3.1).
 export interface TestDatabase {
   pool: Pool;
   reset: () => Promise<void>;
@@ -69,7 +72,12 @@ export const silentLogger: Logger = {
   unexpected: (): void => undefined,
 };
 
-export function buildTestApp(db: TestDatabase, overrides: Record<string, string> = {}): ReturnType<typeof createApp> {
+export interface TestAppOptions {
+  /** Fixed clock for the data use cases (the account flow always uses the real one). */
+  clock?: () => Date;
+}
+
+export function buildTestApp(db: TestDatabase, overrides: Record<string, string> = {}, options: TestAppOptions = {}): ReturnType<typeof createApp> {
   const config = testConfig(overrides);
   return createApp({
     config,
@@ -77,6 +85,13 @@ export function buildTestApp(db: TestDatabase, overrides: Record<string, string>
       accounts: new PgAccountRepository(db.pool),
       hasher: new BcryptPasswordHasher(),
       clock: () => new Date(),
+      newId: () => crypto.randomUUID(),
+    },
+    data: {
+      profiles: new PgProfileRepository(db.pool),
+      items: new PgItemRepository(db.pool),
+      events: new PgEventRepository(db.pool),
+      clock: options.clock ?? ((): Date => new Date()),
       newId: () => crypto.randomUUID(),
     },
     sessions: new JwtSessionTokens(config.jwtSecret, config.jwtExpiresInSeconds),

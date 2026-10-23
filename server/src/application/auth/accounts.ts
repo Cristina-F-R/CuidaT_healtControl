@@ -33,6 +33,11 @@ export async function loginAccount(deps: AccountDependencies, body: LoginBody): 
   return { id: account.id, email: account.email };
 }
 
+/** Right to be forgotten (GDPR Art. 17). Deleting an account that is already gone is not an error. */
+export async function deleteAccount(deps: AccountDependencies, userId: string): Promise<void> {
+  await deps.accounts.deleteAccount(userId);
+}
+
 export async function getAccount(deps: AccountDependencies, userId: string): Promise<AccountSummary> {
   const account = await deps.accounts.findById(userId);
   if (!account) {

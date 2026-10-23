@@ -1,5 +1,5 @@
 /** Security events (OWASP A09). Only the user id is written: no email, no IP, no health data. */
-export type SecurityEvent = 'account_registered' | 'login_succeeded' | 'login_failed' | 'logged_out';
+export type SecurityEvent = 'account_registered' | 'login_succeeded' | 'login_failed' | 'logged_out' | 'account_deleted';
 
 export interface Logger {
   security(event: SecurityEvent, fields?: { userId?: string }): void;

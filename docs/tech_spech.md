@@ -113,7 +113,7 @@ Dependency rule: outer layers depend on inner layers, never the reverse. Busines
 | :--- | :--- | :--- |
 | `shared/src` | Domain kernel | Types, constants (`CORRELATION_WINDOWS`), Zod schemas, `correlation.ts`, `catalog.ts` (item edit rules), `time.ts`, `presets.ts`. No Vue/Express imports. |
 | `server/src/domain` | Domain | Entities, `AppError` hierarchy, repository interfaces (ports). |
-| `server/src/application` | Use cases | `RegisterUser`, `UpgradeGuestAccount`, `LogEvent`, `EditCatalogItem`, `DeleteAccount`... Depend on ports only. |
+| `server/src/application` | Use cases | `RegisterUser` (with the guest import), `LogEvent`, `EditCatalogItem`, `DeleteAccount`... Depend on ports only. |
 | `server/src/infrastructure` | Adapters | pg repositories, bcrypt/JWT adapters, migrations (`db/`), Sentry. |
 | `server/src/interfaces/http` | Delivery | Routes, controllers, Zod validation, middleware (auth, rate limit, error mapper). Composition root in `server/src/main.ts`. |
 | `client/src/application` | Use cases | Pinia stores, composables (`useCalendar`, `useInteraction`, `useMultiMonth`), sync use cases. Depend on repository ports. |
@@ -127,8 +127,9 @@ The store picks the repository implementation by `authMode` (`guest` -> local, `
 ## 4. Environment Configuration (.env.example)
 
 # Frontend (client/.env.example)
-# Development: API on another port. Production (single origin): leave empty, requests go to /api.
-VITE_API_URL=http://localhost:3000
+# Empty (default): requests go to /api on the same origin; in development the Vite proxy sends them
+# to http://localhost:3000. Set it only to call an API on another origin.
+VITE_API_URL=
 VITE_SENTRY_DSN=
 
 # Backend (server/.env.example)

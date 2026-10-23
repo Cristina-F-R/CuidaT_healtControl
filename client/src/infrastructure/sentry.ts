@@ -72,3 +72,10 @@ export function reportError(error: unknown): void {
     Sentry.captureException(error);
   }
 }
+
+/** The opaque user UUID is the only identifier sent to Sentry (ADR-012); `null` on sign-out. */
+export function identifyUser(userId: string | null): void {
+  if (enabled) {
+    Sentry.setUser(userId ? { id: userId } : null);
+  }
+}

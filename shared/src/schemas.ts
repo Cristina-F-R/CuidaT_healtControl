@@ -103,3 +103,101 @@ export const loginBodySchema = z.object({
 export type RegisterBody = z.infer<typeof registerBodySchema>;
 export type LoginBody = z.infer<typeof loginBodySchema>;
 export type GuestData = z.infer<typeof guestDataSchema>;
+
+/** Body of `POST /api/auth/register`, `POST /api/auth/login` and `GET /api/auth/me`. */
+export const authResponseSchema = z.object({
+  user: z.object({ id: uuid, email: z.string() }),
+});
+
+/** Every error the API answers on purpose (server error mapper). */
+export const apiErrorBodySchema = z.object({
+  error: z.object({
+    code: z.string(),
+    message: z.string(),
+    fields: z.array(z.string()).optional(),
+  }),
+});
+
+export type AuthUser = z.infer<typeof authResponseSchema>['user'];
+
+// ---------------------------------------------------------------------------------------------
+// Data API (Phase 3.2). Bodies of the profile, item and event routes, and the query strings.
+// ---------------------------------------------------------------------------------------------
+
+export const uuidSchema = uuid;
+const itemCategory = z.enum(['symptom', 'trigger', 'medication']);
+const intensity = z.union([z.literal(1), z.literal(2), z.literal(3)]);
+
+export const profileCreateSchema = z.object({
+  name: trimmedText(PROFILE_NAME_MAX_LENGTH),
+  profileType: trimmedText(PROFILE_TYPE_MAX_LENGTH),
+  avatarIcon: trimmedText(50).optional(),
+  colorTheme: trimmedText(50).optional(),
+  correlationWindowHours: correlationWindow.optional(),
+});
+
+export const profilePatchSchema = profileCreateSchema
+  .partial()
+  .refine((patch) => Object.values(patch).some((value) => value !== undefined), { message: 'No hay cambios.' });
+
+export const itemCreateSchema = z.object({
+  name: trimmedText(ITEM_NAME_MAX_LENGTH),
+  emoji: trimmedText(ITEM_EMOJI_MAX_LENGTH),
+  category: itemCategory,
+  trackIntensity: z.boolean(),
+  trackDuration: z.boolean(),
+});
+
+export const itemPatchSchema = z.object({
+  name: trimmedText(ITEM_NAME_MAX_LENGTH).optional(),
+  emoji: trimmedText(ITEM_EMOJI_MAX_LENGTH).optional(),
+  /** Accepted only when it equals the current category (ADR-006). */
+  category: itemCategory.optional(),
+  trackIntensity: z.boolean().optional(),
+  trackDuration: z.boolean().optional(),
+});
+
+export const itemListQuerySchema = z.object({
+  status: z.enum(['active', 'archived', 'superseded']).optional(),
+});
+
+/** Body of `PUT /api/profiles/:profileId/events/:id` (idempotent upsert, ADR-007). */
+export const eventUpsertSchema = z.object({
+  itemDefinitionId: uuid,
+  loggedAt: isoInstant,
+  intensity: intensity.nullable(),
+  durationMinutes: z.number().int().min(1).max(1440).nullable(),
+  notes: z.string().trim().max(NOTES_MAX_LENGTH).nullable(),
+  createdAt: isoInstant,
+  /** Instant of the mutation on the client; the server clamps it to now() + 5 min. */
+  updatedAt: isoInstant,
+  /**
+   * True when the log was recorded earlier and is synced later (offline, retries). Such logs are
+   * accepted even if their item has been archived or superseded meanwhile (ADR-007).
+   */
+  deferred: z.boolean().default(false),
+});
+
+export const eventRangeQuerySchema = z.object({
+  from: isoInstant.optional(),
+  to: isoInstant.optional(),
+});
+
+export type ProfileCreateBody = z.infer<typeof profileCreateSchema>;
+export type ProfilePatchBody = z.infer<typeof profilePatchSchema>;
+export type ItemCreateBody = z.infer<typeof itemCreateSchema>;
+export type ItemPatchBody = z.infer<typeof itemPatchSchema>;
+export type EventUpsertBody = z.infer<typeof eventUpsertSchema>;
+export type EventUpsertInput = z.input<typeof eventUpsertSchema>;
+
+/** Entity shapes returned by the API: the same as the guest document rows. */
+export const calendarProfileSchema = guestProfileSchema;
+export const itemDefinitionSchema = guestItemSchema;
+export const eventLogSchema = guestLogSchema;
+
+export const profileResponseSchema = z.object({ profile: calendarProfileSchema });
+export const profilesResponseSchema = z.object({ profiles: z.array(calendarProfileSchema) });
+export const itemResponseSchema = z.object({ item: itemDefinitionSchema });
+export const itemsResponseSchema = z.object({ items: z.array(itemDefinitionSchema) });
+export const logsResponseSchema = z.object({ logs: z.array(eventLogSchema) });
+export const impactResponseSchema = z.object({ logs: z.number().int().min(0) });

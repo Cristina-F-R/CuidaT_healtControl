@@ -1,6 +1,8 @@
 import { computed, ref } from 'vue';
 import type { ComputedRef } from 'vue';
 
+export type AuthFormMode = 'login' | 'register';
+
 export interface EventLogCreateOverlay {
   kind: 'eventLog';
   mode: 'create';
@@ -19,7 +21,8 @@ export type Overlay =
   | EventLogEditOverlay
   | { kind: 'daySummary'; dayKey: string }
   | { kind: 'itemManager' }
-  | { kind: 'auth' };
+  | { kind: 'auth'; mode: AuthFormMode }
+  | { kind: 'deleteAccount' };
 
 // A stack, so a modal opened from another one (e.g. "Editar" in the day summary) returns to it on close.
 const stack = ref<Overlay[]>([]);
@@ -32,13 +35,18 @@ function closeOverlay(): void {
   stack.value = stack.value.slice(0, -1);
 }
 
+function closeAllOverlays(): void {
+  stack.value = [];
+}
+
 export interface OverlayState {
   topOverlay: ComputedRef<Overlay | null>;
   openOverlay: (overlay: Overlay) => void;
   closeOverlay: () => void;
+  closeAllOverlays: () => void;
 }
 
 export function useOverlays(): OverlayState {
   const topOverlay = computed<Overlay | null>(() => stack.value[stack.value.length - 1] ?? null);
-  return { topOverlay, openOverlay, closeOverlay };
+  return { topOverlay, openOverlay, closeOverlay, closeAllOverlays };
 }
