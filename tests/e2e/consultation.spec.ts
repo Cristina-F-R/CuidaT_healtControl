@@ -16,8 +16,9 @@ function instant(day: number, time: string): string {
 }
 
 /**
- * Same scenario as client/src/testing/patternGuestDocument.ts (window 2 h): Pescado -> Vómito on days
- * 2-4 ("Vigilar posible patrón") and Lácteos -> Malestar on days 6-12 ("Patrón detectado").
+ * Same scenario as client/src/testing/patternGuestDocument.ts (window 2 h): each trigger at 23:30 and its
+ * symptom at 00:30 of the next day. Pescado (2, 4, 6) -> Vómito ("Vigilar posible patrón") and Lácteos
+ * (8-14) -> Malestar ("Patrón detectado"). The marked days are the trigger days.
  */
 function guestDocument(): string {
   const createdAt = instant(1, '00:00');
@@ -34,13 +35,13 @@ function guestDocument(): string {
       intensity: null, durationMinutes: null, notes: null, createdAt: loggedAt, updatedAt: loggedAt,
     });
   };
-  for (const day of [2, 3, 4]) {
-    log(10, day, '08:00');
-    log(11, day, '09:00');
+  for (const day of [2, 4, 6]) {
+    log(10, day, '23:30');
+    log(11, day + 1, '00:30');
   }
-  for (const day of [6, 7, 8, 9, 10, 11, 12]) {
-    log(12, day, '08:00');
-    log(13, day, '09:00');
+  for (const day of [8, 9, 10, 11, 12, 13, 14]) {
+    log(12, day, '23:30');
+    log(13, day + 1, '00:30');
   }
   const profile = { id: CALENDAR_ID, name: 'Luna', profileType: 'Mascota', avatarIcon: '🐱', colorTheme: 'slate', correlationWindowHours: 2, createdAt };
   return JSON.stringify({ version: 1, profiles: [profile], items, logs });
@@ -65,12 +66,14 @@ test('consultation mode hides editing, widens the calendar and marks the pattern
   await consultation.click();
   await expect(consultation).toHaveAttribute('aria-checked', 'true');
   await expect(dock).toBeHidden();
-  await expect(page.getByRole('button', { name: /, 3 de octubre de 2026, .* · Vigilar posible patrón$/ })).toBeVisible();
+  // The trigger days are marked (the possible cause); the symptom days are not.
+  await expect(page.getByRole('button', { name: /, 2 de octubre de 2026, .* · Vigilar posible patrón$/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /, 8 de octubre de 2026, .* · Patrón detectado$/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /, 3 de octubre de 2026, 1 registro$/ })).toBeVisible();
   await expect(page.getByRole('list', { name: 'Leyenda del modo consulta' })).toBeVisible();
 
   // A log opens with all its details and without any editing action.
-  await page.getByRole('button', { name: 'Vómito, 09:00. Ver registro' }).first().click();
+  await page.getByRole('button', { name: 'Vómito, 00:30. Ver registro' }).first().click();
   const detail = page.getByRole('dialog', { name: 'Detalle del registro' });
   await expect(detail).toBeVisible();
   await expect(detail.getByRole('button', { name: 'Eliminar registro' })).toHaveCount(0);
@@ -80,6 +83,6 @@ test('consultation mode hides editing, widens the calendar and marks the pattern
   await consultation.click();
   await expect(dock).toBeVisible();
   await expect(page.getByRole('button', { name: /· Patrón detectado$/ })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Vómito, 09:00. Ver registro' }).first().click();
+  await page.getByRole('button', { name: 'Vómito, 00:30. Ver registro' }).first().click();
   await expect(page.getByRole('dialog', { name: 'Editar registro' }).getByRole('button', { name: 'Eliminar registro' })).toBeVisible();
 });

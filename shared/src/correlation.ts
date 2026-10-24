@@ -8,6 +8,8 @@ interface PairAccumulator {
   symptomRootId: string;
   /** Distinct symptom events that matched at least one trigger of the lineage. */
   symptomEventIds: Set<string>;
+  /** Distinct trigger events of the lineage that matched at least one of those symptoms. */
+  triggerEventIds: Set<string>;
 }
 
 function compareText(a: string, b: string): number {
@@ -60,8 +62,10 @@ export function detectCorrelations(
         triggerRootId: trigger.rootItemId,
         symptomRootId: symptom.rootItemId,
         symptomEventIds: new Set<string>(),
+        triggerEventIds: new Set<string>(),
       };
       pair.symptomEventIds.add(symptom.id);
+      pair.triggerEventIds.add(trigger.id);
       pairs.set(key, pair);
     }
   }
@@ -76,8 +80,10 @@ export function detectCorrelations(
         symptomRootId: pair.symptomRootId,
         occurrences,
         category,
-        // Symptoms are visited in stable order, so the set keeps that order.
+        // Both lists keep the stable event order: symptoms are visited in order, and a trigger first matched
+        // by a later symptom is always later than those matched before (an earlier one would be in both windows).
         symptomEventIds: [...pair.symptomEventIds],
+        triggerEventIds: [...pair.triggerEventIds],
       });
     }
   }

@@ -562,7 +562,7 @@ ALLOW_DB_RESET=true npm run db:reset -- --yes
   - Disponible también para invitados.
   - Es un estado de presentación, no un control de acceso (ADR-021).
 - **Días marcados:**
-  - Solo los días de síntoma.
+  - Los días de los triggers o la medicación que forman el patrón (la posible causa), no los de los síntomas: así se ve de un vistazo qué puede estar provocando el problema. En la planificación inicial se marcaban los días de síntoma; se cambió tras revisarlo.
   - Cada mes visible calcula sus propios patrones, igual que la columna derecha. El cálculo sumativo entre meses queda para la post-fase (P.2).
   - Se marcan con franja y borde, no con fondo, porque `peach` ya es el color de las tarjetas de síntoma.
 - **Nuevo token `sun` (`#FFF3BA`):**
@@ -579,7 +579,7 @@ ALLOW_DB_RESET=true npm run db:reset -- --yes
 > Inicia la Fase 4.5 siguiendo `TECH_SPEC.md` (casos de uso 5, 6 y 12, sección 2, sección 6 y ADR-021) y `STYLE_GUIDE.md`:
 >
 > 1. **Token `sun`.** Añade `sun: '#FFF3BA'` a `tailwind.config.js`. Solo se usa para «Vigilar posible patrón», nunca para categorías de ítems. El texto sobre `sun` es `text-slate-800`.
-> 2. **Correlaciones por evento (`shared`).** Amplía `PatternThreshold` con `symptomEventIds: string[]`: los ids de los síntomas que cuentan como ocurrencia, en el orden estable de la sección 6. `occurrences` es siempre `symptomEventIds.length`. Mantén el 100 % de cobertura de `correlation.ts`.
+> 2. **Correlaciones por evento (`shared`).** Amplía `PatternThreshold` con `symptomEventIds: string[]` (los síntomas que cuentan como ocurrencia; `occurrences` es siempre su longitud) y `triggerEventIds: string[]` (los triggers o la medicación que precedieron a esos síntomas dentro de la ventana), ambos en el orden estable de la sección 6. Mantén el 100 % de cobertura de `correlation.ts`.
 > 3. **Estado del modo consulta.** Crea `client/src/application/composables/useViewMode.ts` con `consultationMode` (un `ref` de módulo). Arranca en `false`, no se persiste y vuelve a `false` en `reloadWorkspace()` (inicio y cierre de sesión, borrado de cuenta). El servidor no cambia: es un estado de presentación (ADR-021).
 > 4. **Interruptor.** En `FilterBar.vue`, en la misma fila que «Ver todo / Solo síntomas / Solo triggers» pero alineado a la derecha (`justify-between`; en móvil puede bajar a la línea siguiente), añade el interruptor «Modo consulta»: un `<button role="switch" :aria-checked>` con la pista de `STYLE_GUIDE.md` (`h-5 w-9 rounded-full`, `bg-slate-300` / `bg-slate-700`). Funciona igual para invitados. Elimina el interruptor local de `DaySummaryModal.vue`.
 > 5. **Efectos del modo activo:**
@@ -591,7 +591,7 @@ ALLOW_DB_RESET=true npm run db:reset -- --yes
 >    - Siguen disponibles: navegación de meses, `1M | 2M | 3M`, filtros, «Ver resúmenes», cambio de calendario y cierre de sesión.
 >    - Un anuncio `aria-live="polite"` dice «Modo consulta activado» o «Modo consulta desactivado».
 > 6. **Días con patrón (solo en modo consulta).**
->    - **Cálculo:** cada mes visible calcula sus patrones con la misma consulta que la columna derecha: los síntomas del mes, los desencadenantes desde una ventana antes y la ventana del calendario. Un día se marca si contiene algún síntoma de `symptomEventIds`; «Patrón detectado» tiene prioridad sobre «Vigilar posible patrón». El día se calcula en la zona horaria local, como el resto del calendario.
+>    - **Cálculo:** cada mes visible calcula sus patrones con la misma consulta que la columna derecha: los síntomas del mes, los desencadenantes desde una ventana antes y la ventana del calendario. Un día se marca si contiene algún trigger o medicación de `triggerEventIds` (la posible causa; los días de síntoma no se marcan); «Patrón detectado» tiene prioridad sobre «Vigilar posible patrón». El día se calcula en la zona horaria local, como el resto del calendario.
 >    - **Marca:** franja superior de 6 px y borde de 2 px (`sun` o `peach`) sin cambiar el fondo `bg-canvas` de la celda, más una insignia con icono (`Eye` para vigilar, `TriangleAlert` para detectado) y `text-slate-800` sobre el color.
 >    - **Texto accesible:** el `aria-label` del botón del día termina en «· Vigilar posible patrón» o «· Patrón detectado».
 >    - **Filtros:** la marca no depende del filtro activo.
@@ -600,7 +600,7 @@ ALLOW_DB_RESET=true npm run db:reset -- --yes
 > 8. **Cabecera.** Desde `md`, `AppHeader.vue` tiene tres zonas (`grid grid-cols-[1fr_auto_1fr]`): logo a la izquierda, `ProfileMenu` centrado, y estado de sincronización y cuenta a la derecha. Por debajo de `md`, dos filas: logo con estado y cuenta arriba, y `ProfileMenu` centrado debajo.
 > 9. **Identidad del calendario.** `colorTheme` tiñe el avatar y el fondo del botón de `ProfileMenu`, y una franja superior de 4 px en `CalendarPanel.vue`. Bajo las píldoras de `ProfileColorField.vue` aparece: «Te ayuda a reconocer el calendario de un vistazo.»
 > 10. **Pruebas.**
->     - Unitarias: `symptomEventIds` (instantes idénticos, varias versiones del mismo linaje y síntomas sin desencadenante), clasificación por día con la ventana previa al mes y prioridad de «detectado».
+>     - Unitarias: `symptomEventIds` y `triggerEventIds` (instantes idénticos, varias versiones del mismo linaje, síntomas sin desencadenante y triggers que ningún síntoma siguió), clasificación por día con la ventana previa al mes y prioridad de «detectado».
 >     - Componentes: con el modo activo no hay ningún control de edición, el dock no se renderiza y el detalle del registro es de solo lectura.
 >     - E2E (`tests/e2e/consultation.spec.ts`): siembra los datos (la clave del invitado o la API) en lugar de crearlos por la interfaz. Activa el modo y comprueba que desaparece el dock, que un día con patrón tiene la marca y su texto accesible, y que un registro se abre sin «Eliminar registro». Desactívalo y comprueba que todo vuelve.
 > 11. Confirma que ningún `.vue` supera las 180 líneas y que `npm run typecheck`, `npm run lint`, `npm run test:coverage` y `npm run test:e2e` terminan correctamente.
@@ -610,7 +610,8 @@ ALLOW_DB_RESET=true npm run db:reset -- --yes
 > - **Insignia del día:** va junto al número, en el flujo de la celda, no superpuesta. En móvil, superpuesta tapaba el número; ahora baja de línea cuando no cabe.
 > - **Columna derecha:** `PatternSection` recibe `tone` (`watch` o `detected`) en lugar de título y superficie. El mismo componente sirve para la columna y para «Ver resúmenes», así que los dos lugares usan los mismos colores.
 > - **Menú de calendarios:** el botón toma el color del calendario y el avatar de dentro va sobre `canvas`, para que contraste con él. En la lista, cada avatar lleva el color de su calendario.
-> - **Pruebas:** el escenario con patrones conocidos está en `client/src/testing/patternGuestDocument.ts`. El E2E tiene su propia copia del mismo escenario, porque compartir el archivo acoplaría la resolución `nodenext` de Playwright con la de `vue-tsc`. Las dos suites fijan la fecha (`vi.setSystemTime` y `page.clock`) para que el resultado no dependa del día en que se ejecutan.
+> - **Marcas en los triggers:** tras revisar el resultado, se marcan los días de los triggers o la medicación del patrón (la posible causa) en vez de los de los síntomas. `detectCorrelations` devuelve también `triggerEventIds`. Un trigger que causa síntomas del mes siguiente solo se marca cuando se calcula ese mes; el cálculo sumativo entre meses (post-fase) lo resolverá.
+> - **Pruebas:** el escenario con patrones conocidos está en `client/src/testing/patternGuestDocument.ts`. Cada trigger se registra a las 23:30 y su síntoma a las 00:30 del día siguiente, para que los tests distingan el día marcado (trigger) del día del síntoma. El E2E tiene su propia copia del mismo escenario, porque compartir el archivo acoplaría la resolución `nodenext` de Playwright con la de `vue-tsc`. Las dos suites fijan la fecha (`vi.setSystemTime` y `page.clock`) para que el resultado no dependa del día en que se ejecutan.
 
 ## Fase 5: despliegue en Render
 

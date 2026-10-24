@@ -12,7 +12,7 @@ import { resetViewMode } from './application/composables/useViewMode';
 import { resetDataLayerForTests } from './infrastructure/repositories/createRepositories';
 import { createMemoryStore } from './infrastructure/sync/keyValueStore';
 import { jsonResponse } from './testing/fakeApi';
-import { buildPatternGuestDocument, DETECTED_DAYS, UNMARKED_DAY, WATCH_DAYS } from './testing/patternGuestDocument';
+import { buildPatternGuestDocument, DETECTED_TRIGGER_DAYS, UNMARKED_DAY, WATCH_SYMPTOM_DAYS, WATCH_TRIGGER_DAYS } from './testing/patternGuestDocument';
 
 // Phase 4.5: global consultation mode (TECH_SPEC.md use case 12). The clock is fixed so the seeded
 // month is the current one, as guests only see the current month.
@@ -88,29 +88,31 @@ describe('App (Phase 4.5: consultation mode)', () => {
     expect(consultationSwitch().getAttribute('aria-checked')).toBe('false');
     expect(consultationSwitch().textContent).toContain('Modo consulta');
     expect(document.querySelector('#dock-title')).not.toBeNull();
-    expect(dayButton(WATCH_DAYS[0]).getAttribute('aria-label')).not.toContain('patrón');
+    expect(dayButton(WATCH_TRIGGER_DAYS[0]).getAttribute('aria-label')).not.toContain('patrón');
   });
 
-  it('hides the dock and marks the symptom days of each pattern, detected over watch', async () => {
+  it('hides the dock and marks the trigger days of each pattern (the possible cause), not the symptom days', async () => {
     await click(consultationSwitch());
 
     expect(consultationSwitch().getAttribute('aria-checked')).toBe('true');
     expect(document.body.textContent).toContain('Modo consulta activado');
     expect(document.querySelector('#dock-title')).toBeNull();
-    for (const day of WATCH_DAYS) {
+    for (const day of WATCH_TRIGGER_DAYS) {
       expect(dayButton(day).getAttribute('aria-label')).toMatch(/· Vigilar posible patrón$/);
     }
-    for (const day of DETECTED_DAYS) {
+    for (const day of DETECTED_TRIGGER_DAYS) {
       expect(dayButton(day).getAttribute('aria-label')).toMatch(/· Patrón detectado$/);
     }
-    expect(dayButton(UNMARKED_DAY).getAttribute('aria-label')).not.toContain('patrón');
+    for (const day of [...WATCH_SYMPTOM_DAYS, 15, UNMARKED_DAY]) {
+      expect(dayButton(day).getAttribute('aria-label')).not.toContain('patrón');
+    }
     expect(document.querySelector('[aria-label="Leyenda del modo consulta"]')).not.toBeNull();
   });
 
   it('shows a log and a day without any editing action', async () => {
     await click(consultationSwitch());
 
-    await click(buttonNamed('Vómito, 09:00. Ver registro'));
+    await click(buttonNamed('Vómito, 00:30. Ver registro'));
     expect(dialog().textContent).toContain('Detalle del registro');
     expect(dialog().textContent).toContain('Después de comer');
     expect(dialog().textContent).toContain('Moderada');
@@ -118,8 +120,8 @@ describe('App (Phase 4.5: consultation mode)', () => {
     expect(buttonNamed('Guardar', dialog())).toBeUndefined();
     await click(buttonNamed('Cerrar', dialog()));
 
-    await click(dayButton(WATCH_DAYS[0]));
-    expect(dialog().querySelectorAll('li').length).toBe(2);
+    await click(dayButton(WATCH_SYMPTOM_DAYS[0]));
+    expect(dialog().querySelectorAll('li').length).toBe(1);
     expect(buttonNamed('Editar', dialog())).toBeUndefined();
     expect(buttonNamed('Eliminar', dialog())).toBeUndefined();
   });
@@ -138,8 +140,8 @@ describe('App (Phase 4.5: consultation mode)', () => {
 
     expect(document.body.textContent).toContain('Modo consulta desactivado');
     expect(document.querySelector('#dock-title')).not.toBeNull();
-    expect(dayButton(DETECTED_DAYS[0]).getAttribute('aria-label')).not.toContain('patrón');
-    await click(buttonNamed('Vómito, 09:00. Ver registro'));
+    expect(dayButton(DETECTED_TRIGGER_DAYS[0]).getAttribute('aria-label')).not.toContain('patrón');
+    await click(buttonNamed('Vómito, 00:30. Ver registro'));
     expect(dialog().textContent).toContain('Editar registro');
   });
 

@@ -3,14 +3,15 @@ import { describe, expect, it } from 'vitest';
 import { markPatternDays, monthPatternQuery } from './usePatterns';
 import type { PatternView } from './usePatterns';
 
-function pattern(category: PatternView['category'], symptomEventIds: string[]): PatternView {
+function pattern(category: PatternView['category'], triggerEventIds: string[]): PatternView {
   return {
-    key: `${category}-${symptomEventIds.join()}`,
+    key: `${category}-${triggerEventIds.join()}`,
     triggerLabel: 'Pescado',
     symptomLabel: 'Vómito',
-    occurrences: symptomEventIds.length,
+    occurrences: triggerEventIds.length,
     category,
-    symptomEventIds,
+    symptomEventIds: [],
+    triggerEventIds,
   };
 }
 
@@ -22,7 +23,7 @@ const DAY_OF: Record<string, string> = {
 };
 
 describe('consultation day marks (TECH_SPEC.md use case 12)', () => {
-  it('marks the days of the symptoms that make up each pattern', () => {
+  it('marks the days of the triggers behind each pattern, the possible cause', () => {
     const marks = markPatternDays([pattern('Vigilar posible patrón', ['a', 'b'])], (id) => DAY_OF[id]);
     expect([...marks]).toEqual([
       ['2026-10-02', 'watch'],
@@ -41,7 +42,7 @@ describe('consultation day marks (TECH_SPEC.md use case 12)', () => {
     }
   });
 
-  it('ignores symptoms whose log is no longer loaded', () => {
+  it('ignores triggers whose log is no longer loaded', () => {
     expect(markPatternDays([pattern('Patrón detectado', ['missing'])], (id) => DAY_OF[id]).size).toBe(0);
   });
 

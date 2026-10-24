@@ -72,8 +72,13 @@ export interface PatternThreshold {
   /** Always `symptomEventIds.length`. */
   occurrences: number;
   category: PatternCategory;
-  /** Symptom events counted as occurrences, in the stable event order (consultation day marks). */
+  /** Symptom events counted as occurrences, in the stable event order. */
   symptomEventIds: string[];
+  /**
+   * Trigger/medication events that preceded a counted symptom within the window, in the stable event
+   * order: the possible cause, marked on the calendar in consultation mode.
+   */
+  triggerEventIds: string[];
 }
 
 export type ItemPreset = Pick<HealthItemDefinition, 'name' | 'emoji' | 'category' | 'trackIntensity' | 'trackDuration'>;

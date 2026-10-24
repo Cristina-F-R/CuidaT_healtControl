@@ -65,7 +65,7 @@ CuidaT is a reactive web application designed for visual tracking, deterministic
   12. Global Consultation Mode (Phase 4.5, ADR-021):
       - Trigger: a "Modo consulta" switch (`role="switch"`) on the right of the filter row ("Ver todo / Solo síntomas / Solo triggers"). Available to guests and registered users. It always starts off and is not persisted (`useViewMode.ts`); it is reset by `reloadWorkspace()`.
       - Read-only workspace: the dock (`SidebarDock`) is not rendered and the calendar takes its space (2 columns from `lg`). Placement (select-then-place and drag-and-drop) is disabled. `DaySummaryModal` is read-only. Clicking an event opens its details in `EventDetailModal.vue` (item, date and time, intensity, duration, notes) without editable fields, "Guardar" or "Eliminar registro". `ProfileMenu` hides "Editar calendario" and "Nuevo calendario" (switching calendars stays), the catalog manager is not reachable and `AccountMenu` hides "Eliminar cuenta". Month navigation, density, filters, "Ver resúmenes", calendar switching and sign-out remain available.
-      - Pattern Days: each visible month computes its patterns with the same query as the insights rail (symptoms of the month, triggers from one window earlier, the calendar's window). A day is marked when it holds a symptom listed in `symptomEventIds` of a reported pattern: "Patrón detectado" (`peach`) takes precedence over "Vigilar posible patrón" (`sun`). Only symptom days are marked, in local time, independently of the active filter. Cumulative highlighting across stacked months is planned (section 9.2).
+      - Pattern Days: each visible month computes its patterns with the same query as the insights rail (symptoms of the month, triggers from one window earlier, the calendar's window). A day is marked when it holds a trigger/medication listed in `triggerEventIds` of a reported pattern, so the possible cause stands out at a glance: "Patrón detectado" (`peach`) takes precedence over "Vigilar posible patrón" (`sun`). Only trigger/medication days are marked (not the symptom days), in local time, independently of the active filter. A trigger whose symptom falls in the next month is marked only once that month is the one computed (each month on its own, see below). Cumulative highlighting across stacked months is planned (section 9.2).
       - Non-Color Cue (WCAG 1.4.1 / 1.4.11): the band and border alone reach only about 1.1:1 (`sun`) and 1.3:1 (`peach`) against `canvas`, so every marked day also shows an icon badge (`Eye` / `TriangleAlert`) and its day button's `aria-label` ends with "· Vigilar posible patrón" or "· Patrón detectado". A legend explains both marks.
       - Toggling announces "Modo consulta activado" / "Modo consulta desactivado" through `aria-live="polite"`.
 
@@ -258,7 +258,8 @@ export interface PatternThreshold {
   symptomRootId: string;
   occurrences: number; // always symptomEventIds.length
   category: 'Vigilar posible patrón' | 'Patrón detectado';
-  symptomEventIds: string[]; // symptoms counted as occurrences, in the stable order of step 1 (Phase 4.5: consultation day marks)
+  symptomEventIds: string[]; // symptoms counted as occurrences, in the stable order of step 1
+  triggerEventIds: string[]; // triggers/medication that preceded a counted symptom within the window, in the same order (Phase 4.5: consultation day marks, the possible cause)
 }
 
 // The algorithm must:
@@ -335,7 +336,7 @@ export interface PatternThreshold {
   - Review: reopen this decision if guest mode is offered to users who cannot use the browser's own protections, or if CSP cannot be enforced.
 - ADR-021: Consultation Mode Is a Presentation State
   - Context: during a medical visit the device may be handed to a clinician, so editing must be out of reach and patterns must stand out.
-  - Decision: Consultation Mode is a client-side view state (`useViewMode.ts`), global to the workspace, off on every start and never persisted, so nobody finds the app locked without knowing why. It removes editing affordances from the UI; it is not an authorization control, and the API keeps applying the same rules to every request. Pattern day marks reuse `detectCorrelations()` (its `symptomEventIds`), so the calendar, the insights rail and future reports share one engine.
+  - Decision: Consultation Mode is a client-side view state (`useViewMode.ts`), global to the workspace, off on every start and never persisted, so nobody finds the app locked without knowing why. It removes editing affordances from the UI; it is not an authorization control, and the API keeps applying the same rules to every request. Pattern day marks reuse `detectCorrelations()` (its `triggerEventIds`: the days of the possible cause), so the calendar, the insights rail and future reports share one engine.
 - ADR-022 (planned): Server-Built Report Snapshots, Client-Rendered PDF
   - Decision: see section 9.1. Reports are immutable JSON snapshots computed by the server from validated parameters with the shared engine; the browser renders both the on-screen view and the PDF from the same snapshot. No PDF binaries are stored and no health data is sent to third-party rendering services.
 

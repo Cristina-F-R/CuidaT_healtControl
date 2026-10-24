@@ -17,8 +17,10 @@ export interface PatternView {
   symptomLabel: string;
   occurrences: number;
   category: PatternCategory;
-  /** Symptom logs that make up the pattern (consultation day marks). */
+  /** Symptom logs that make up the pattern. */
   symptomEventIds: string[];
+  /** Trigger/medication logs behind the pattern: the days marked in consultation mode. */
+  triggerEventIds: string[];
 }
 
 /** Mark of a calendar day in consultation mode (TECH_SPEC.md use case 12). */
@@ -81,6 +83,7 @@ export function collectPatterns(query: PatternQuery): PatternView[] {
     occurrences: pattern.occurrences,
     category: pattern.category,
     symptomEventIds: pattern.symptomEventIds,
+    triggerEventIds: pattern.triggerEventIds,
   }));
 }
 
@@ -99,8 +102,8 @@ export function monthPatternQuery(monthKey: string, windowHours: CorrelationWind
 }
 
 /**
- * Days to mark in consultation mode: the local days of the symptoms that make up a reported pattern.
- * "Patrón detectado" wins over "Vigilar posible patrón" on the same day.
+ * Days to mark in consultation mode: the local days of the triggers/medication behind a reported pattern,
+ * the possible cause. "Patrón detectado" wins over "Vigilar posible patrón" on the same day.
  */
 export function markPatternDays(
   patterns: readonly PatternView[],
@@ -109,7 +112,7 @@ export function markPatternDays(
   const marks = new Map<string, DayMark>();
   for (const pattern of patterns) {
     const mark: DayMark = pattern.category === 'Patrón detectado' ? 'detected' : 'watch';
-    for (const eventId of pattern.symptomEventIds) {
+    for (const eventId of pattern.triggerEventIds) {
       const dayKey = dayOfEvent(eventId);
       if (dayKey && marks.get(dayKey) !== 'detected') {
         marks.set(dayKey, mark);
