@@ -68,6 +68,11 @@ export function createApp(deps: AppDependencies): Express {
   }));
   app.use(cookieParser());
 
+  // Render's health check and the keep-warm job: before the rate limiter and without touching the database.
+  app.get('/api/health', (_req: Request, res: Response) => {
+    res.set('Cache-Control', 'no-store').json({ status: 'ok' });
+  });
+
   app.use('/api', requireSameSiteClient(config.clientOrigin));
   app.use('/api', apiRateLimit());
   // Register parses its own, larger body (see authRouter); everything else keeps the small limit.

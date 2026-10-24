@@ -1,0 +1,34 @@
+# Render Blueprint (ADR-019): one free Docker web service in the EU, next to the Neon database.
+# Render: New -> Blueprint -> this repository. Secrets marked `sync: false` are asked for on creation
+# and never stored in the repository. CLIENT_ORIGIN stays unset: the server uses RENDER_EXTERNAL_URL.
+services:
+  - type: web
+    name: cuidat
+    runtime: docker
+    plan: free
+    region: frankfurt
+    branch: main
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SERVE_CLIENT
+        value: "true"
+      # Neon, production branch: pooled connection (host with "-pooler") for the API.
+      - key: DATABASE_URL
+        sync: false
+      # Neon, production branch: direct connection for the migrations run at startup.
+      - key: DATABASE_URL_DIRECT
+        sync: false
+      # At least 32 random characters, different from the development one.
+      - key: JWT_SECRET
+        sync: false
+      # Optional (EU region). Empty disables Sentry.
+      - key: SENTRY_DSN
+        sync: false
+      # Optional. Read at build time: Render passes environment variables to the Docker build.
+      - key: VITE_SENTRY_DSN
+        sync: false

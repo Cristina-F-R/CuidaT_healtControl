@@ -1,0 +1,26 @@
+name: Mantener despierto
+
+# Opcional. El servicio gratuito de Render se duerme tras unos 15 minutos sin tráfico.
+# Desactivado por defecto: solo hace algo si existe la variable de repositorio PUBLIC_URL
+# (Settings -> Secrets and variables -> Actions -> Variables), p. ej. https://cuidat.onrender.com
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: keep-warm
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    if: vars.PUBLIC_URL != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Hasta un minuto de arranque en frío: tiempo de espera amplio y reintentos.
+      - run: curl --fail --silent --show-error --max-time 90 --retry 3 --retry-delay 10 "${PUBLIC_URL%/}/api/health"
+        env:
+          PUBLIC_URL: ${{ vars.PUBLIC_URL }}
