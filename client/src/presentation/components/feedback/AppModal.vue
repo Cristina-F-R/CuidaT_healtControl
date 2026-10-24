@@ -5,6 +5,8 @@ import { FOCUS_RING } from '../../categoryStyles';
 
 defineProps<{
   title: string;
+  /** Wider dialog for long documents (saved reports). */
+  wide?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -69,7 +71,8 @@ onBeforeUnmount(() => {
       role="dialog"
       aria-modal="true"
       :aria-labelledby="titleId"
-      class="flex max-h-[92vh] w-full max-w-lg flex-col gap-4 overflow-y-auto p-5 bg-canvas rounded-t-2xl shadow-xl sm:rounded-2xl"
+      class="flex max-h-[92vh] w-full flex-col gap-4 overflow-y-auto p-5 bg-canvas rounded-t-2xl shadow-xl sm:rounded-2xl"
+      :class="wide ? 'max-w-3xl' : 'max-w-lg'"
       @keydown="onKeydown"
     >
       <header class="flex items-start justify-between gap-3">

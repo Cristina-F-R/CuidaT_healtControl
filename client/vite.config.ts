@@ -31,6 +31,9 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // The PDF of saved reports (pdfmake, about 1 MB) loads only when a report is downloaded, so it
+        // stays out of the precache; its .woff fonts are already outside globPatterns.
+        globIgnores: ['**/pdfmake-*.js', '**/reportPdf-*.js'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],
         cleanupOutdatedCaches: true,

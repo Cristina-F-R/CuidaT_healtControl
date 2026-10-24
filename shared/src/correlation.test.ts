@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { classifyOccurrences, detectCorrelations } from './correlation.js';
-import type { HealthEvent, ItemCategory } from './types.js';
+import { classifyOccurrences, detectCorrelations, markPatternDays } from './correlation.js';
+import type { HealthEvent, ItemCategory, PatternThreshold } from './types.js';
 
 const T0 = Date.parse('2026-04-01T00:00:00.000Z');
 const HOUR = 3_600_000;
@@ -196,5 +196,36 @@ describe('detectCorrelations', () => {
       event('s', 'symptom', 1, 'vomit'),
     ];
     expect(detectCorrelations(duplicated, 2)).toEqual([]);
+  });
+});
+
+describe('markPatternDays (TECH_SPEC.md use case 12)', () => {
+  const DAY_OF: Record<string, string> = { a: '2026-10-02', b: '2026-10-03', c: '2026-10-03', d: '2026-10-08' };
+  const dayOf = (id: string): string | undefined => DAY_OF[id];
+  const pattern = (category: PatternThreshold['category'], triggerEventIds: string[]): Pick<PatternThreshold, 'category' | 'triggerEventIds'> => ({
+    category,
+    triggerEventIds,
+  });
+
+  it('marks the days of the triggers behind each pattern, the possible cause', () => {
+    expect([...markPatternDays([pattern('Vigilar posible patrón', ['a', 'b'])], dayOf)]).toEqual([
+      ['2026-10-02', 'watch'],
+      ['2026-10-03', 'watch'],
+    ]);
+  });
+
+  it('gives "Patrón detectado" priority on a shared day, in any order', () => {
+    const watch = pattern('Vigilar posible patrón', ['a', 'b']);
+    const detected = pattern('Patrón detectado', ['c', 'd']);
+    for (const patterns of [[watch, detected], [detected, watch]]) {
+      const marks = markPatternDays(patterns, dayOf);
+      expect(marks.get('2026-10-02')).toBe('watch');
+      expect(marks.get('2026-10-03')).toBe('detected');
+      expect(marks.get('2026-10-08')).toBe('detected');
+    }
+  });
+
+  it('skips triggers whose day is unknown', () => {
+    expect(markPatternDays([pattern('Patrón detectado', ['missing'])], dayOf).size).toBe(0);
   });
 });

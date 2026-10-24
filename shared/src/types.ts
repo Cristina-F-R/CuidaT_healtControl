@@ -13,6 +13,9 @@ export type ProfileColorTheme = 'slate' | 'peach' | 'sky' | 'mint';
 
 export type PatternCategory = 'Vigilar posible patrón' | 'Patrón detectado';
 
+/** Mark of a day in consultation mode and in reports (TECH_SPEC.md use case 12). */
+export type DayMark = 'watch' | 'detected';
+
 export type AuthMode = 'guest' | 'authenticated';
 
 export interface CalendarProfile {

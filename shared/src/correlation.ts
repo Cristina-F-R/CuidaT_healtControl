@@ -1,5 +1,5 @@
 import { PATTERN_DETECTED_MIN_OCCURRENCES, PATTERN_WATCH_MIN_OCCURRENCES } from './constants.js';
-import type { CorrelationWindowHours, HealthEvent, PatternCategory, PatternThreshold } from './types.js';
+import type { CorrelationWindowHours, DayMark, HealthEvent, PatternCategory, PatternThreshold } from './types.js';
 
 const MS_PER_HOUR = 3_600_000;
 
@@ -88,4 +88,26 @@ export function detectCorrelations(
     }
   }
   return result;
+}
+
+/**
+ * Days to mark (consultation mode and reports, TECH_SPEC.md use case 12): the days of the triggers/medication
+ * behind a reported pattern, the possible cause. "Patrón detectado" wins over "Vigilar posible patrón" on the
+ * same day. `dayOfEvent` gives the local day of an event, or `undefined` when it is not known.
+ */
+export function markPatternDays(
+  patterns: readonly Pick<PatternThreshold, 'category' | 'triggerEventIds'>[],
+  dayOfEvent: (eventId: string) => string | undefined,
+): Map<string, DayMark> {
+  const marks = new Map<string, DayMark>();
+  for (const pattern of patterns) {
+    const mark: DayMark = pattern.category === 'Patrón detectado' ? 'detected' : 'watch';
+    for (const eventId of pattern.triggerEventIds) {
+      const dayKey = dayOfEvent(eventId);
+      if (dayKey && marks.get(dayKey) !== 'detected') {
+        marks.set(dayKey, mark);
+      }
+    }
+  }
+  return marks;
 }

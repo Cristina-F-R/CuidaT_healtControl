@@ -1,33 +1,11 @@
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { signUp } from '../../../test/support/apiSession.js';
+import type { ApiSession as Session, TestApp as App } from '../../../test/support/apiSession.js';
 import { buildTestApp, startTestDatabase, TEST_ORIGIN } from '../../../test/support/testDatabase.js';
 import type { TestDatabase } from '../../../test/support/testDatabase.js';
 
-type App = ReturnType<typeof buildTestApp>;
-type Method = 'get' | 'post' | 'put' | 'patch' | 'delete';
-
-const PASSWORD = 'contraseña-segura-2026';
 const HOUR = 3_600_000;
-
-interface Session {
-  call: (method: Method, path: string, body?: object) => Promise<request.Response>;
-}
-
-async function signUp(app: App, email: string): Promise<Session> {
-  const registered = await request(app)
-    .post('/api/auth/register')
-    .set('X-CuidaT-Client', 'web')
-    .set('Origin', TEST_ORIGIN)
-    .send({ email, password: PASSWORD });
-  const cookie = registered.headers['set-cookie']?.find((value: string) => value.startsWith('cuidat_session=')) ?? '';
-  expect(cookie).not.toBe('');
-  return {
-    call: (method, path, body) => {
-      const pending = request(app)[method](`/api${path}`).set('Cookie', cookie).set('X-CuidaT-Client', 'web').set('Origin', TEST_ORIGIN);
-      return body ? pending.send(body) : pending;
-    },
-  };
-}
 
 async function createCalendar(session: Session, name = 'Moby'): Promise<string> {
   const response = await session.call('post', '/profiles', { name, profileType: 'Mascota' });

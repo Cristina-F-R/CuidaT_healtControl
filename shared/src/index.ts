@@ -10,3 +10,4 @@ export * from './events.js';
 export * from './profiles.js';
 export * from './guestLimits.js';
 export * from './schemas.js';
+export * from './reports.js';

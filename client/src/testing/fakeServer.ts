@@ -1,5 +1,5 @@
-import { createPresetItems } from '@cuidat/shared';
-import type { AuthUser, CalendarProfile, HealthEventLog, HealthItemDefinition } from '@cuidat/shared';
+import { buildReportSnapshot, createPresetItems, REPORTS_MAX_PER_USER, reportCreateSchema } from '@cuidat/shared';
+import type { AuthUser, CalendarProfile, HealthEventLog, HealthItemDefinition, SavedReport } from '@cuidat/shared';
 import { fakeApi, jsonResponse, noContent } from './fakeApi';
 import type { FakeRequest } from './fakeApi';
 
@@ -19,6 +19,8 @@ export interface FakeServer {
   signedIn: boolean;
   /** When set, PUT and DELETE of events answer this status (to simulate outages or refusals). */
   eventWriteStatus: number | null;
+  /** Saved reports, built with the real snapshot builder (TECH_SPEC.md section 9.1). */
+  reports: SavedReport[];
 }
 
 function idFrom(request: FakeRequest): string {
@@ -39,7 +41,10 @@ export function createFakeServer(signedIn = false): FakeServer {
   let next = 0;
   const newId = (): string => `22222222-2222-4222-8222-${String(++next).padStart(12, '0')}`;
   const items = createPresetItems(profile.id, newId, new Date('2026-01-01T00:00:00.000Z'));
-  const server: FakeServer = { fetch: fakeApi({}), profile, profiles: [profile], items, logs: new Map(), signedIn, registerBodies: [], eventWriteStatus: null };
+  const server: FakeServer = { fetch: fakeApi({}), profile, profiles: [profile], items, logs: new Map(), signedIn, registerBodies: [], eventWriteStatus: null, reports: [] };
+  const summary = ({ id, calendarId, calendarName, title, periodFrom, periodTo, createdAt }: SavedReport): Omit<SavedReport, 'snapshot'> => ({
+    id, calendarId, calendarName, title, periodFrom, periodTo, createdAt,
+  });
 
   server.fetch = fakeApi({
     'GET /api/auth/me': () =>
@@ -113,6 +118,32 @@ export function createFakeServer(signedIn = false): FakeServer {
         return jsonResponse(server.eventWriteStatus, { error: { code: 'TEST_REFUSED', message: 'Rechazado en la prueba.' } });
       }
       server.logs.delete(idFrom(request));
+      return noContent();
+    },
+    'GET /api/reports': () => jsonResponse(200, { reports: server.reports.map(summary) }),
+    'POST /api/reports': (request) => {
+      const body = reportCreateSchema.parse(request.body);
+      if (server.reports.length >= REPORTS_MAX_PER_USER) {
+        return jsonResponse(409, { error: { code: 'REPORT_LIMIT', message: 'Has alcanzado el máximo de 5 informes. Elimina uno para guardar otro.' } });
+      }
+      const calendar = server.profiles.find((candidate) => candidate.id === body.calendarId) ?? server.profile;
+      const createdAt = new Date().toISOString();
+      const snapshot = buildReportSnapshot({
+        ...body, profile: calendar, items: server.items, logs: [...server.logs.values()], generatedAt: createdAt,
+      });
+      const report: SavedReport = {
+        id: newId(), calendarId: calendar.id, calendarName: calendar.name, title: body.title ?? `Informe de ${calendar.name}`,
+        periodFrom: body.from, periodTo: body.to, createdAt, snapshot,
+      };
+      server.reports = [report, ...server.reports];
+      return jsonResponse(201, { report: summary(report) });
+    },
+    'GET /api/reports/:id': (request) => {
+      const report = server.reports.find((candidate) => candidate.id === idFrom(request));
+      return report ? jsonResponse(200, { report }) : jsonResponse(404, { error: { code: 'NOT_FOUND', message: 'El informe no existe.' } });
+    },
+    'DELETE /api/reports/:id': (request) => {
+      server.reports = server.reports.filter((candidate) => candidate.id !== idFrom(request));
       return noContent();
     },
   });

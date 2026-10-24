@@ -5,6 +5,9 @@ import type {
   ItemDraft,
   ItemEditPatch,
   ProfileDraft,
+  ReportCreateBody,
+  ReportSummary,
+  SavedReport,
 } from '@cuidat/shared';
 
 // Repository ports (TECH_SPEC.md section 3.1): stores depend on these interfaces only.
@@ -55,8 +58,19 @@ export interface EventRepository {
   remove(calendarId: string, logId: string): Promise<void>;
 }
 
+/** Saved reports (TECH_SPEC.md section 9.1): online only, the server builds the snapshot. */
+export interface ReportRepository {
+  /** Metadata of every report of the account, newest first. */
+  list(): Promise<ReportSummary[]>;
+  get(reportId: string): Promise<SavedReport>;
+  create(body: ReportCreateBody): Promise<ReportSummary>;
+  remove(reportId: string): Promise<void>;
+}
+
 export interface Repositories {
   profiles: ProfileRepository;
   items: ItemRepository;
   events: EventRepository;
+  /** `null` for guests: reports belong to registered users only. */
+  reports: ReportRepository | null;
 }

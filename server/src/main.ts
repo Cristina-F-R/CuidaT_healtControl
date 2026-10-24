@@ -6,6 +6,7 @@ import { PgAccountRepository } from './infrastructure/repositories/PgAccountRepo
 import { PgEventRepository } from './infrastructure/repositories/PgEventRepository.js';
 import { PgItemRepository } from './infrastructure/repositories/PgItemRepository.js';
 import { PgProfileRepository } from './infrastructure/repositories/PgProfileRepository.js';
+import { PgReportRepository } from './infrastructure/repositories/PgReportRepository.js';
 import { BcryptPasswordHasher } from './infrastructure/security/BcryptPasswordHasher.js';
 import { JwtSessionTokens } from './infrastructure/security/JwtSessionTokens.js';
 import { consoleLogger } from './infrastructure/observability/logger.js';
@@ -29,6 +30,7 @@ const app = createApp({
     profiles: new PgProfileRepository(pool),
     items: new PgItemRepository(pool),
     events: new PgEventRepository(pool),
+    reports: new PgReportRepository(pool),
     clock: () => new Date(),
     newId: () => crypto.randomUUID(),
   },

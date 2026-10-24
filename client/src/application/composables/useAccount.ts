@@ -1,4 +1,4 @@
-import type { CalendarProfile, HealthEventLog, HealthItemDefinition, LoginBody } from '@cuidat/shared';
+import type { CalendarProfile, HealthEventLog, HealthItemDefinition, LoginBody, SavedReport } from '@cuidat/shared';
 import dayjs from 'dayjs';
 import { downloadJson } from '../../infrastructure/download';
 import { ApiError, NetworkError } from '../../infrastructure/http/apiClient';
@@ -17,12 +17,14 @@ export interface UserDataExport {
   exportedAt: string;
   account: { id: string; email: string } | null;
   calendars: (CalendarProfile & { items: HealthItemDefinition[]; logs: HealthEventLog[] })[];
+  /** Saved reports with their snapshots (registered users; guests have none). */
+  reports: SavedReport[];
 }
 
 /** The whole history: the export is not limited to the months loaded on screen. */
 const ALL_TIME_FROM = '1970-01-01T00:00:00.000Z';
 
-/** Every calendar with all its item versions and logs, read through the repositories. */
+/** Every calendar with all its item versions and logs, and every saved report, read through the repositories. */
 export async function buildUserDataExport(now: Date = new Date()): Promise<UserDataExport> {
   const authStore = useAuthStore();
   const repositories = currentRepositories();
@@ -32,12 +34,16 @@ export async function buildUserDataExport(now: Date = new Date()): Promise<UserD
     const [items, logs] = await Promise.all([repositories.items.list(profile.id), repositories.events.list(profile.id, range)]);
     return { ...profile, items, logs };
   }));
+  const reportRepository = repositories.reports;
+  const summaries = reportRepository ? await reportRepository.list() : [];
+  const reports = reportRepository ? await Promise.all(summaries.map((summary) => reportRepository.get(summary.id))) : [];
   return {
     format: 'cuidat-export',
     version: 1,
     exportedAt: now.toISOString(),
     account: authStore.user ? { id: authStore.user.id, email: authStore.user.email } : null,
     calendars,
+    reports,
   };
 }
 

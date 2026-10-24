@@ -100,7 +100,7 @@ Every `.vue` component must strictly observe the following block sequence:
 
 ## 5. Tailwind CSS & UI Assembly Rules
 
-- Tailwind CSS 3.4 with tokens extended in `tailwind.config.js`. Arbitrary hex values are banned in component templates; default palette colors (`white`, `red-*`, ...) are not used either. Allowed tokens:
+- Tailwind CSS 3.4 with tokens extended in `tailwind.config.js`, whose values come from `client/src/theme/palette.ts` (also used by the PDF reports). Arbitrary hex values are banned in component templates; default palette colors (`white`, `red-*`, ...) are not used either. Allowed tokens:
   - `slate` full scale (`slate-50` ... `slate-950`, DEFAULT = 600): structural text, icons, borders, buttons.
   - `peach` (symptoms, warnings, severity indicators, "Patrón detectado"), `sky` (medication, informational cards and secondary panels), `mint` (triggers, confirmations, correlation badges).
   - `sun` (`#FFF3BA`): "Vigilar posible patrón" only (insights cards and consultation day marks). Never used for item categories.
@@ -158,6 +158,13 @@ Every `.vue` component must strictly observe the following block sequence:
 - Catalog Manager (item create/edit/archive/delete):
   - Follows the lifecycle table of `TECH_SPEC.md` use case 9: `category` locked on edit; notice when `name`/`emoji` edits are retroactive; flags edit creates a new version.
   - "Archivar" is the primary option; "Eliminar definitivamente" is secondary, shows the number of logs to be erased and requires an explicit acceptance checkbox before enabling the `danger` button.
+- Saved Reports (`TECH_SPEC.md` section 9):
+  - "Guardar como informe" (`SaveReportForm.vue`) is a `bg-tint rounded-xl` block at the end of `CorrelationFilterModal.vue`: optional title, "N de 5" and a primary button. When it cannot save (offline, 5 reports, nothing selected) the button is disabled and a line says why; guests get the locked Toast.
+  - "Informes guardados" (`ReportsModal.vue`, from `AccountMenu.vue` with the `FileText` icon): each report shows title, calendar, period and date, with "Ver" (primary), "Descargar PDF" (outlined) and "Eliminar" (`text-danger`, two-step inline confirmation; hidden in Consultation Mode). Icon-free buttons carry an `aria-label` with the report title.
+  - Report view (`ReportViewModal.vue`, `AppModal` with `wide` = `max-w-3xl`): top band in the calendar's theme, then patterns (same `sun` / `peach` cards and icons as the insights rail), per-item statistics (category surface behind the emoji), mini calendars (`ReportMiniMonth.vue`: same marks as Consultation Mode, read-only `role="group"` cells with an `aria-label`), and the day-by-day list. Everything is drawn from the snapshot.
+  - "Guardar como informe" states what it will include, with counts: only the checked items go into the report.
+  - Empty pattern boxes keep the threshold surface (`bg-sun` / `bg-peach`). Next to the mini calendars, `ReportItemLegend.vue` maps each emoji to its item.
+  - PDF: same order as the view, Nunito Sans, colors from `palette.ts`; emojis as PNG images drawn by the browser (item initial as fallback) with a legend; no arrows (the font subset lacks them).
 - Consent-Driven Onboarding Switch (`AuthModal.vue`):
   - Include an explicit switch element in the registration form: "Conservar y migrar datos locales existentes a mi cuenta".
   - Toggle style: Standard accessible toggle switch (`peer h-5 w-9 rounded-full bg-slate-300 peer-checked:bg-slate-700`).

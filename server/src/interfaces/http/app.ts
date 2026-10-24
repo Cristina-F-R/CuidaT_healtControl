@@ -15,6 +15,7 @@ import { requireSameSiteClient } from './middleware/guards.js';
 import { apiRateLimit } from './middleware/rateLimits.js';
 import { authRouter } from './routes/authRoutes.js';
 import { dataRouter } from './routes/dataRoutes.js';
+import { reportRouter } from './routes/reportRoutes.js';
 
 export interface AppDependencies {
   config: AppConfig;
@@ -75,6 +76,7 @@ export function createApp(deps: AppDependencies): Express {
 
   app.use('/api/auth', authRouter({ config, account: deps.account, sessions: deps.sessions, logger }));
   app.use('/api/profiles', dataRouter(deps.data, deps.sessions));
+  app.use('/api/reports', reportRouter(deps.data, deps.sessions));
   app.use('/api', (_req: Request, _res: Response, next: NextFunction) => next(new NotFoundError('La ruta no existe.')));
 
   if (config.serveClient && deps.clientDir) {

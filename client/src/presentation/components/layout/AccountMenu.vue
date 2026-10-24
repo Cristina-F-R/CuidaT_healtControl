@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronDown, Download, LogOut, Trash2, UserRound } from '@lucide/vue';
+import { ChevronDown, Download, FileText, LogOut, Trash2, UserRound } from '@lucide/vue';
 import { onBeforeUnmount, onMounted, ref, useId } from 'vue';
 import { useAccount } from '../../../application/composables/useAccount';
 import { useOverlays } from '../../../application/composables/useOverlays';
@@ -47,6 +47,11 @@ async function onDownload(): Promise<void> {
   } catch {
     showToast('No se pudieron descargar tus datos. Inténtalo de nuevo.', { tone: 'warning' });
   }
+}
+
+function onReports(): void {
+  close();
+  openOverlay({ kind: 'reports' });
 }
 
 function onDelete(): void {
@@ -100,6 +105,19 @@ const ITEM = 'flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-bo
     >
       <li class="px-3 py-2 truncate text-xs text-slate-600">
         {{ email }}
+      </li>
+      <li>
+        <button
+          type="button"
+          :class="[ITEM, FOCUS_RING, 'text-slate-800']"
+          @click="onReports"
+        >
+          <FileText
+            :size="16"
+            aria-hidden="true"
+          />
+          Informes guardados
+        </button>
       </li>
       <li>
         <button

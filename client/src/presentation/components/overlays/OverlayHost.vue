@@ -7,6 +7,8 @@ import AuthModal from '../auth/AuthModal.vue';
 import DeleteAccountModal from '../auth/DeleteAccountModal.vue';
 import CorrelationFilterModal from '../insights/CorrelationFilterModal.vue';
 import ProfileEditModal from '../profiles/ProfileEditModal.vue';
+import ReportsModal from '../reports/ReportsModal.vue';
+import ReportViewModal from '../reports/ReportViewModal.vue';
 import DaySummaryModal from '../logs/DaySummaryModal.vue';
 import EventDetailModal from '../logs/EventDetailModal.vue';
 import EventLogModal from '../logs/EventLogModal.vue';
@@ -44,6 +46,12 @@ const daySummaryDayKey = computed<string | null>(() =>
   />
   <DeleteAccountModal v-else-if="topOverlay?.kind === 'deleteAccount'" />
   <CorrelationFilterModal v-else-if="topOverlay?.kind === 'correlationFilter'" />
+  <ReportsModal v-else-if="topOverlay?.kind === 'reports'" />
+  <ReportViewModal
+    v-else-if="topOverlay?.kind === 'reportView'"
+    :key="topOverlay.reportId"
+    :report-id="topOverlay.reportId"
+  />
   <ProfileEditModal
     v-else-if="topOverlay?.kind === 'profileEdit'"
     :key="topOverlay.profileId ?? 'new'"

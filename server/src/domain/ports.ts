@@ -1,4 +1,4 @@
-import type { CalendarProfile, HealthEventLog, HealthItemDefinition, ItemStatus } from '@cuidat/shared';
+import type { CalendarProfile, HealthEventLog, HealthItemDefinition, ItemStatus, ReportSummary, SavedReport } from '@cuidat/shared';
 
 // Ports (TECH_SPEC.md section 3.1): application code depends on these interfaces only.
 
@@ -122,4 +122,21 @@ export interface EventRepository {
   ): Promise<EventUpsertOutcome>;
   /** Idempotent: deleting a missing log is not an error. */
   remove(scope: CalendarScope, logId: string): Promise<void>;
+}
+
+/** A report ready to be stored: the snapshot is already built by the server (ADR-022). */
+export type NewReport = Omit<SavedReport, 'calendarName'>;
+
+export interface ReportRepository {
+  /** Metadata of every report of the user, newest first (no snapshots). */
+  list(userId: string): Promise<ReportSummary[]>;
+  /** `null` when the report does not exist or belongs to another user. */
+  find(userId: string, reportId: string): Promise<SavedReport | null>;
+  /**
+   * Stores the report unless the user already has `limit` reports. Locks the user row first, so two
+   * concurrent requests cannot both pass the check.
+   */
+  insertWithinLimit(userId: string, report: NewReport, limit: number): Promise<'created' | 'limit' | 'calendar_not_found'>;
+  /** `false` when the report does not exist or belongs to another user. */
+  remove(userId: string, reportId: string): Promise<boolean>;
 }

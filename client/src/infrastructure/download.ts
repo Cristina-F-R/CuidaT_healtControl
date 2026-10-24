@@ -1,9 +1,8 @@
 /**
- * Downloads `data` as a JSON file built in the browser (GDPR Art. 20). Nothing is uploaded: the
- * object URL lives only for the click and is revoked right after.
+ * Downloads a file built in the browser: nothing is uploaded, and the object URL lives only for the
+ * click and is revoked right after (STYLE_GUIDE.md, GDPR Art. 20).
  */
-export function downloadJson(fileName: string, data: unknown): void {
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+export function downloadBlob(fileName: string, blob: Blob): void {
   const url = URL.createObjectURL(blob);
   try {
     const link = document.createElement('a');
@@ -13,4 +12,9 @@ export function downloadJson(fileName: string, data: unknown): void {
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+
+/** Downloads `data` as a JSON file (GDPR Art. 20, «Descargar mis datos»). */
+export function downloadJson(fileName: string, data: unknown): void {
+  downloadBlob(fileName, new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
 }
