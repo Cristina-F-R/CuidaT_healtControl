@@ -1,5 +1,5 @@
 import { PATTERN_DETECTED_MIN_OCCURRENCES, PATTERN_WATCH_MIN_OCCURRENCES } from './constants.js';
-import type { CorrelationWindowHours, HealthEvent, PatternCategory, PatternThreshold } from './types.js';
+import type { CorrelationWindowHours, DayMark, HealthEvent, PatternCategory, PatternThreshold } from './types.js';
 
 const MS_PER_HOUR = 3_600_000;
 
@@ -8,6 +8,8 @@ interface PairAccumulator {
   symptomRootId: string;
   /** Distinct symptom events that matched at least one trigger of the lineage. */
   symptomEventIds: Set<string>;
+  /** Distinct trigger events of the lineage that matched at least one of those symptoms. */
+  triggerEventIds: Set<string>;
 }
 
 function compareText(a: string, b: string): number {
@@ -60,8 +62,10 @@ export function detectCorrelations(
         triggerRootId: trigger.rootItemId,
         symptomRootId: symptom.rootItemId,
         symptomEventIds: new Set<string>(),
+        triggerEventIds: new Set<string>(),
       };
       pair.symptomEventIds.add(symptom.id);
+      pair.triggerEventIds.add(trigger.id);
       pairs.set(key, pair);
     }
   }
@@ -76,10 +80,34 @@ export function detectCorrelations(
         symptomRootId: pair.symptomRootId,
         occurrences,
         category,
-        // Symptoms are visited in stable order, so the set keeps that order.
+        // Both lists keep the stable event order: symptoms are visited in order, and a trigger first matched
+        // by a later symptom is always later than those matched before (an earlier one would be in both windows).
         symptomEventIds: [...pair.symptomEventIds],
+        triggerEventIds: [...pair.triggerEventIds],
       });
     }
   }
   return result;
+}
+
+/**
+ * Days to mark (consultation mode and reports, TECH_SPEC.md use case 12): the days of the triggers/medication
+ * behind a reported pattern, the possible cause. "Patrón detectado" wins over "Vigilar posible patrón" on the
+ * same day. `dayOfEvent` gives the local day of an event, or `undefined` when it is not known.
+ */
+export function markPatternDays(
+  patterns: readonly Pick<PatternThreshold, 'category' | 'triggerEventIds'>[],
+  dayOfEvent: (eventId: string) => string | undefined,
+): Map<string, DayMark> {
+  const marks = new Map<string, DayMark>();
+  for (const pattern of patterns) {
+    const mark: DayMark = pattern.category === 'Patrón detectado' ? 'detected' : 'watch';
+    for (const eventId of pattern.triggerEventIds) {
+      const dayKey = dayOfEvent(eventId);
+      if (dayKey && marks.get(dayKey) !== 'detected') {
+        marks.set(dayKey, mark);
+      }
+    }
+  }
+  return marks;
 }

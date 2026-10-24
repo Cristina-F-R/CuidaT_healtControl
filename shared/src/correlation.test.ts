@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { classifyOccurrences, detectCorrelations } from './correlation.js';
-import type { HealthEvent, ItemCategory } from './types.js';
+import { classifyOccurrences, detectCorrelations, markPatternDays } from './correlation.js';
+import type { HealthEvent, ItemCategory, PatternThreshold } from './types.js';
 
 const T0 = Date.parse('2026-04-01T00:00:00.000Z');
 const HOUR = 3_600_000;
@@ -51,7 +51,8 @@ describe('detectCorrelations', () => {
 
   it('matches symptoms that follow a trigger inside the window', () => {
     expect(detectCorrelations(repeatedPair(3), 2)).toEqual([
-      { triggerRootId: 'fish', symptomRootId: 'vomit', occurrences: 3, category: 'Vigilar posible patrón', symptomEventIds: ['s-0', 's-1', 's-2'] },
+      { triggerRootId: 'fish', symptomRootId: 'vomit', occurrences: 3, category: 'Vigilar posible patrón',
+        symptomEventIds: ['s-0', 's-1', 's-2'], triggerEventIds: ['t-0', 't-1', 't-2'] },
     ]);
   });
 
@@ -122,6 +123,7 @@ describe('detectCorrelations', () => {
         occurrences: 3,
         category: 'Vigilar posible patrón',
         symptomEventIds: ['vomit-v1', 'vomit-v2', 'vomit-v3'],
+        triggerEventIds: ['fish-v1', 'fish-v2', 'fish-v3'],
       },
     ]);
   });
@@ -137,6 +139,7 @@ describe('detectCorrelations', () => {
         occurrences: 7,
         category: 'Patrón detectado',
         symptomEventIds: ['s-0', 's-1', 's-2', 's-3', 's-4', 's-5', 's-6'],
+        triggerEventIds: ['t-0', 't-1', 't-2', 't-3', 't-4', 't-5', 't-6'],
       },
     ]);
   });
@@ -160,8 +163,8 @@ describe('detectCorrelations', () => {
     // Identical instants: symptoms are listed by createdAt, then id.
     const symptomEventIds = ['s-0', 's-1', 's-2'];
     expect(forward).toEqual([
-      { triggerRootId: 'fish', symptomRootId: 'vomit', occurrences: 3, category: 'Vigilar posible patrón', symptomEventIds },
-      { triggerRootId: 'milk', symptomRootId: 'vomit', occurrences: 3, category: 'Vigilar posible patrón', symptomEventIds },
+      { triggerRootId: 'fish', symptomRootId: 'vomit', occurrences: 3, category: 'Vigilar posible patrón', symptomEventIds, triggerEventIds: ['a', 'b'] },
+      { triggerRootId: 'milk', symptomRootId: 'vomit', occurrences: 3, category: 'Vigilar posible patrón', symptomEventIds, triggerEventIds: ['c'] },
     ]);
   });
 
@@ -172,6 +175,19 @@ describe('detectCorrelations', () => {
     expect(pattern?.occurrences).toBe(pattern?.symptomEventIds.length);
   });
 
+  it('lists each trigger behind the pattern once, in order, and leaves out triggers no symptom followed', () => {
+    const events = [
+      event('early', 'trigger', 0, 'fish'),
+      event('t-1', 'trigger', 10, 'fish'),
+      event('t-2', 'trigger', 10.5, 'fish'),
+      event('s-1', 'symptom', 11, 'vomit'),
+      event('s-2', 'symptom', 11.5, 'vomit'),
+      event('t-3', 'trigger', 20, 'fish'),
+      event('s-3', 'symptom', 21, 'vomit'),
+    ];
+    expect(detectCorrelations(events, 2)[0]?.triggerEventIds).toEqual(['t-1', 't-2', 't-3']);
+  });
+
   it('handles identical duplicated events without double counting', () => {
     const duplicated = [
       event('t', 'trigger', 0, 'fish'),
@@ -180,5 +196,36 @@ describe('detectCorrelations', () => {
       event('s', 'symptom', 1, 'vomit'),
     ];
     expect(detectCorrelations(duplicated, 2)).toEqual([]);
+  });
+});
+
+describe('markPatternDays (TECH_SPEC.md use case 12)', () => {
+  const DAY_OF: Record<string, string> = { a: '2026-10-02', b: '2026-10-03', c: '2026-10-03', d: '2026-10-08' };
+  const dayOf = (id: string): string | undefined => DAY_OF[id];
+  const pattern = (category: PatternThreshold['category'], triggerEventIds: string[]): Pick<PatternThreshold, 'category' | 'triggerEventIds'> => ({
+    category,
+    triggerEventIds,
+  });
+
+  it('marks the days of the triggers behind each pattern, the possible cause', () => {
+    expect([...markPatternDays([pattern('Vigilar posible patrón', ['a', 'b'])], dayOf)]).toEqual([
+      ['2026-10-02', 'watch'],
+      ['2026-10-03', 'watch'],
+    ]);
+  });
+
+  it('gives "Patrón detectado" priority on a shared day, in any order', () => {
+    const watch = pattern('Vigilar posible patrón', ['a', 'b']);
+    const detected = pattern('Patrón detectado', ['c', 'd']);
+    for (const patterns of [[watch, detected], [detected, watch]]) {
+      const marks = markPatternDays(patterns, dayOf);
+      expect(marks.get('2026-10-02')).toBe('watch');
+      expect(marks.get('2026-10-03')).toBe('detected');
+      expect(marks.get('2026-10-08')).toBe('detected');
+    }
+  });
+
+  it('skips triggers whose day is unknown', () => {
+    expect(markPatternDays([pattern('Patrón detectado', ['missing'])], dayOf).size).toBe(0);
   });
 });

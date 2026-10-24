@@ -13,6 +13,9 @@ export type ProfileColorTheme = 'slate' | 'peach' | 'sky' | 'mint';
 
 export type PatternCategory = 'Vigilar posible patrón' | 'Patrón detectado';
 
+/** Mark of a day in consultation mode and in reports (TECH_SPEC.md use case 12). */
+export type DayMark = 'watch' | 'detected';
+
 export type AuthMode = 'guest' | 'authenticated';
 
 export interface CalendarProfile {
@@ -72,8 +75,13 @@ export interface PatternThreshold {
   /** Always `symptomEventIds.length`. */
   occurrences: number;
   category: PatternCategory;
-  /** Symptom events counted as occurrences, in the stable event order (consultation day marks). */
+  /** Symptom events counted as occurrences, in the stable event order. */
   symptomEventIds: string[];
+  /**
+   * Trigger/medication events that preceded a counted symptom within the window, in the stable event
+   * order: the possible cause, marked on the calendar in consultation mode.
+   */
+  triggerEventIds: string[];
 }
 
 export type ItemPreset = Pick<HealthItemDefinition, 'name' | 'emoji' | 'category' | 'trackIntensity' | 'trackDuration'>;

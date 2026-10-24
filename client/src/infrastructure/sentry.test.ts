@@ -14,6 +14,20 @@ describe('Sentry privacy filters (ADR-012)', () => {
     expect(scrubBreadcrumb(navigation)?.data).toMatchObject({ from: '/a', to: '/b' });
   });
 
+  it('keeps only method, status and path of a saved-report request, never its body or answer', () => {
+    const fetchCrumb: Breadcrumb = {
+      category: 'fetch',
+      data: {
+        method: 'POST',
+        status_code: 201,
+        url: '/api/reports?debug=1',
+        request_body: '{"title":"Visita","symptomRootIds":["x"]}',
+        response_body: '{"report":{"title":"Visita"}}',
+      },
+    };
+    expect(scrubBreadcrumb(fetchCrumb)?.data).toEqual({ method: 'POST', status_code: 201, url: '/api/reports' });
+  });
+
   it('removes request bodies, extra data and every user field except the opaque id', () => {
     const event = {
       request: { url: 'https://app.test/api/x?q=1', method: 'PUT', data: '{"notes":"dolor"}' },

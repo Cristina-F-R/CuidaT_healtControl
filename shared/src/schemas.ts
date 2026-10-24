@@ -1,6 +1,15 @@
 import { z } from 'zod';
 import { ITEM_EMOJI_MAX_LENGTH, ITEM_NAME_MAX_LENGTH } from './catalog.js';
-import { CORRELATION_WINDOWS, GUEST_MAX_PROFILES, NOTES_MAX_LENGTH, PROFILE_COLOR_THEMES } from './constants.js';
+import {
+  CORRELATION_WINDOWS,
+  GUEST_MAX_PROFILES,
+  NOTES_MAX_LENGTH,
+  PROFILE_COLOR_THEMES,
+  REPORT_MAX_MONTHS,
+  REPORT_SCHEMA_VERSION,
+  REPORT_TITLE_MAX_LENGTH,
+} from './constants.js';
+import { isValidTimeZone, monthsBetween } from './time.js';
 import { PROFILE_NAME_MAX_LENGTH, PROFILE_TYPE_MAX_LENGTH } from './profiles.js';
 import type { CorrelationWindowHours } from './types.js';
 
@@ -203,3 +212,116 @@ export const itemResponseSchema = z.object({ item: itemDefinitionSchema });
 export const itemsResponseSchema = z.object({ items: z.array(itemDefinitionSchema) });
 export const logsResponseSchema = z.object({ logs: z.array(eventLogSchema) });
 export const impactResponseSchema = z.object({ logs: z.number().int().min(0) });
+
+// Saved reports (TECH_SPEC.md section 9.1). The client sends only parameters; the server builds the snapshot.
+
+const isoDate = z.iso.date();
+
+/** Body of `POST /api/reports`. */
+export const reportCreateSchema = z
+  .object({
+    calendarId: uuid,
+    from: isoDate,
+    to: isoDate,
+    timeZone: z.string().max(64).refine(isValidTimeZone, { message: 'La zona horaria no es válida.' }),
+    symptomRootIds: z.array(uuid).max(500),
+    triggerRootIds: z.array(uuid).max(500),
+    title: trimmedText(REPORT_TITLE_MAX_LENGTH).optional(),
+  })
+  .refine((body) => body.from <= body.to, { message: 'El inicio no puede ser posterior al final.', path: ['to'] })
+  .refine((body) => body.from > body.to || monthsBetween(body.from, body.to).length <= REPORT_MAX_MONTHS, {
+    message: `El periodo no puede superar ${REPORT_MAX_MONTHS} meses.`,
+    path: ['from'],
+  })
+  .refine((body) => body.symptomRootIds.length + body.triggerRootIds.length > 0, {
+    message: 'Elige al menos un síntoma o un trigger.',
+    path: ['symptomRootIds'],
+  });
+
+const reportItemSchema = z.object({
+  rootId: uuid,
+  name: z.string(),
+  emoji: z.string(),
+  category: itemCategory,
+  archived: z.boolean(),
+});
+
+const reportPatternSchema = z.object({
+  triggerRootId: uuid,
+  symptomRootId: uuid,
+  occurrences: z.number().int().min(1),
+  category: z.enum(['Vigilar posible patrón', 'Patrón detectado']),
+});
+
+const reportItemStatsSchema = z.object({
+  rootId: uuid,
+  logCount: z.number().int().min(0),
+  /** Logs with intensity 1, 2 and 3; `null` when none of them recorded it. */
+  intensityCounts: z.tuple([z.number().int(), z.number().int(), z.number().int()]).nullable(),
+  intensityMean: z.number().nullable(),
+  durationTotalMinutes: z.number().int().nullable(),
+  durationMeanMinutes: z.number().nullable(),
+});
+
+const reportLogSchema = z.object({
+  time: z.string().regex(/^\d{2}:\d{2}$/),
+  rootId: uuid,
+  intensity: intensity.nullable(),
+  durationMinutes: z.number().int().nullable(),
+  notes: z.string().nullable(),
+});
+
+const reportDaySchema = z.object({
+  date: isoDate,
+  mark: z.enum(['watch', 'detected']).nullable(),
+  logs: z.array(reportLogSchema),
+});
+
+/** Immutable content of a report: names and values as they were when it was generated. */
+export const reportSnapshotSchema = z.object({
+  schemaVersion: z.literal(REPORT_SCHEMA_VERSION),
+  generatedAt: isoInstant,
+  timeZone: z.string(),
+  calendar: z.object({
+    name: z.string(),
+    profileType: z.string(),
+    avatarIcon: z.string(),
+    colorTheme,
+    correlationWindowHours: correlationWindow,
+  }),
+  period: z.object({ from: isoDate, to: isoDate }),
+  /** Selected lineages, symptoms first. */
+  items: z.array(reportItemSchema),
+  /** Detected first, then by occurrences. */
+  patterns: z.array(reportPatternSchema),
+  itemStats: z.array(reportItemStatsSchema),
+  /** Only the days with logs of the selected items. */
+  days: z.array(reportDaySchema),
+  months: z.array(z.string().regex(/^\d{4}-\d{2}$/)),
+});
+
+export const reportSummarySchema = z.object({
+  id: uuid,
+  calendarId: uuid,
+  calendarName: z.string(),
+  title: z.string(),
+  periodFrom: isoDate,
+  periodTo: isoDate,
+  createdAt: isoInstant,
+});
+
+export const savedReportSchema = reportSummarySchema.extend({ snapshot: reportSnapshotSchema });
+
+export const reportsResponseSchema = z.object({ reports: z.array(reportSummarySchema) });
+export const reportSummaryResponseSchema = z.object({ report: reportSummarySchema });
+export const savedReportResponseSchema = z.object({ report: savedReportSchema });
+
+export type ReportCreateBody = z.infer<typeof reportCreateSchema>;
+export type ReportSnapshot = z.infer<typeof reportSnapshotSchema>;
+export type ReportItem = z.infer<typeof reportItemSchema>;
+export type ReportPattern = z.infer<typeof reportPatternSchema>;
+export type ReportItemStats = z.infer<typeof reportItemStatsSchema>;
+export type ReportDay = z.infer<typeof reportDaySchema>;
+export type ReportLog = z.infer<typeof reportLogSchema>;
+export type ReportSummary = z.infer<typeof reportSummarySchema>;
+export type SavedReport = z.infer<typeof savedReportSchema>;

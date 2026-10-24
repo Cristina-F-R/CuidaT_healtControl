@@ -7,6 +7,7 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useEventStore } from '../stores/useEventStore';
 import { useItemDefinitionStore } from '../stores/useItemDefinitionStore';
 import { useProfileStore } from '../stores/useProfileStore';
+import { useReportStore } from '../stores/useReportStore';
 import { useSyncStore } from '../stores/useSyncStore';
 import { useCalendar } from './useCalendar';
 import { useInteraction } from './useInteraction';
@@ -106,13 +107,15 @@ export async function createCalendar(draft: ProfileDraft): Promise<void> {
 
 /**
  * Deletes a calendar (ADR-003) and shows the one that takes its place when it was the active one. Its
- * logs still waiting in the sync queue are dropped: the server erased the calendar with them.
+ * logs still waiting in the sync queue and its saved reports are dropped: the server erased the calendar
+ * with them.
  */
 export async function deleteCalendar(calendarId: string): Promise<void> {
   const profileStore = useProfileStore();
   const wasActive = calendarId === profileStore.activeProfileId;
   await profileStore.deleteProfile(calendarId);
   await useSyncStore().discardCalendar(calendarId);
+  useReportStore().forgetCalendar(calendarId);
   if (wasActive) {
     await loadCalendarData(profileStore.activeProfileId);
   }
@@ -124,6 +127,7 @@ export async function reloadWorkspace(): Promise<void> {
   useEventStore().resetState();
   useItemDefinitionStore().resetState();
   useProfileStore().resetState();
+  useReportStore().resetState();
   // Guests only see the current month (ADR-018).
   if (useAuthStore().isGuest) {
     useCalendar().goToday();

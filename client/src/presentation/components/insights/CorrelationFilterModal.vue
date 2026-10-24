@@ -6,6 +6,7 @@ import { GUEST_LOCKED_WARNING, PATTERN_DETECTED_MIN_OCCURRENCES, PATTERN_WATCH_M
 import { FOCUS_RING } from '../../categoryStyles';
 import AppModal from '../feedback/AppModal.vue';
 import LineageCheckboxGroup from './LineageCheckboxGroup.vue';
+import SaveReportForm from '../reports/SaveReportForm.vue';
 import PatternSection from './PatternSection.vue';
 
 // «Ver resúmenes» (TECH_SPEC.md use case 3): correlations of a chosen period, filtered by symptoms and
@@ -132,5 +133,11 @@ const DATE_INPUT = 'px-2 py-1.5 font-normal text-slate-800 bg-canvas border bord
         :patterns="filter.detectedPatterns.value"
       />
     </div>
+    <SaveReportForm
+      :from="from"
+      :to="to"
+      :symptom-root-ids="selectedSymptoms"
+      :trigger-root-ids="selectedTriggers"
+    />
   </AppModal>
 </template>

@@ -142,6 +142,7 @@ async function onDelete(): Promise<void> {
     </form>
     <ProfileDeleteSection
       v-if="existing"
+      :profile-id="existing.id"
       :profile-name="existing.name"
       :busy="saving"
       @confirm="onDelete"

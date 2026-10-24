@@ -26,6 +26,9 @@ export type Overlay =
   /** `profileId: null` creates a calendar. */
   | { kind: 'profileEdit'; profileId: string | null }
   | { kind: 'correlationFilter' }
+  /** Saved reports of the account and one report on screen (TECH_SPEC.md section 9.1). */
+  | { kind: 'reports' }
+  | { kind: 'reportView'; reportId: string }
   | { kind: 'auth'; mode: AuthFormMode }
   | { kind: 'deleteAccount' };
 

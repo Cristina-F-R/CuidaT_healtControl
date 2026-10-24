@@ -11,6 +11,7 @@ import { PgAccountRepository } from '../../src/infrastructure/repositories/PgAcc
 import { PgEventRepository } from '../../src/infrastructure/repositories/PgEventRepository.js';
 import { PgItemRepository } from '../../src/infrastructure/repositories/PgItemRepository.js';
 import { PgProfileRepository } from '../../src/infrastructure/repositories/PgProfileRepository.js';
+import { PgReportRepository } from '../../src/infrastructure/repositories/PgReportRepository.js';
 import { BcryptPasswordHasher } from '../../src/infrastructure/security/BcryptPasswordHasher.js';
 import { JwtSessionTokens } from '../../src/infrastructure/security/JwtSessionTokens.js';
 
@@ -91,6 +92,7 @@ export function buildTestApp(db: TestDatabase, overrides: Record<string, string>
       profiles: new PgProfileRepository(db.pool),
       items: new PgItemRepository(db.pool),
       events: new PgEventRepository(db.pool),
+      reports: new PgReportRepository(db.pool),
       clock: options.clock ?? ((): Date => new Date()),
       newId: () => crypto.randomUUID(),
     },

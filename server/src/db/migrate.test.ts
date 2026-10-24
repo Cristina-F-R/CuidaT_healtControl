@@ -16,7 +16,7 @@ describe('runMigrations', () => {
 
   it('applies every migration once, in order, and records them', async () => {
     const versions = await db.pool.query<{ version: string }>('SELECT version FROM schema_migrations ORDER BY version');
-    expect(versions.rows.map((row) => row.version)).toEqual(['001_init', '002_color_theme_check']);
+    expect(versions.rows.map((row) => row.version)).toEqual(['001_init', '002_color_theme_check', '003_health_reports']);
   });
 
   it('refuses a color theme outside the palette (002_color_theme_check)', async () => {

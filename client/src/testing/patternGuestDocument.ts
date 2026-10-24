@@ -1,14 +1,17 @@
 import type { HealthEventLog, HealthItemDefinition } from '@cuidat/shared';
 import type { GuestDocument } from '../infrastructure/repositories/guestStorage';
 
-// Guest calendar with known patterns in one month (window 2 h, each symptom one hour after its trigger):
-// - Pescado -> Vómito on days 2, 3 and 4: "Vigilar posible patrón" (3 occurrences).
-// - Lácteos -> Malestar on days 6 to 12: "Patrón detectado" (7 occurrences).
-// Day 15 holds a lonely symptom, so it is never marked.
+// Guest calendar with known patterns in one month (window 2 h). Each trigger is logged at 23:30 and its
+// symptom at 00:30 of the next day, so the marked days (the triggers, the possible cause) and the symptom
+// days are different:
+// - Pescado (days 2, 4, 6) -> Vómito (days 3, 5, 7): "Vigilar posible patrón" (3 occurrences).
+// - Lácteos (days 8 to 14) -> Malestar (days 9 to 15): "Patrón detectado" (7 occurrences).
+// Day 17 holds a lonely symptom, so it is never marked.
 export const PATTERN_CALENDAR_ID = '00000000-0000-4000-8000-000000000001';
-export const WATCH_DAYS = [2, 3, 4] as const;
-export const DETECTED_DAYS = [6, 7, 8, 9, 10, 11, 12] as const;
-export const UNMARKED_DAY = 15;
+export const WATCH_TRIGGER_DAYS = [2, 4, 6] as const;
+export const WATCH_SYMPTOM_DAYS = [3, 5, 7] as const;
+export const DETECTED_TRIGGER_DAYS = [8, 9, 10, 11, 12, 13, 14] as const;
+export const UNMARKED_DAY = 17;
 
 function uuid(n: number): string {
   return `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -38,15 +41,15 @@ export function buildPatternGuestDocument(monthKey: string): GuestDocument {
       intensity: itemIndex % 2 === 1 ? 2 : null, durationMinutes: null, notes, createdAt: loggedAt, updatedAt: loggedAt,
     });
   };
-  for (const day of WATCH_DAYS) {
-    log(0, day, '08:00');
-    log(1, day, '09:00', 'Después de comer');
+  for (const day of WATCH_TRIGGER_DAYS) {
+    log(0, day, '23:30');
+    log(1, day + 1, '00:30', 'Después de comer');
   }
-  for (const day of DETECTED_DAYS) {
-    log(2, day, '08:00');
-    log(3, day, '09:00');
+  for (const day of DETECTED_TRIGGER_DAYS) {
+    log(2, day, '23:30');
+    log(3, day + 1, '00:30');
   }
-  log(1, UNMARKED_DAY, '09:00');
+  log(1, UNMARKED_DAY, '00:30');
 
   return {
     version: 1,

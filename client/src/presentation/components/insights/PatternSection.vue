@@ -53,9 +53,11 @@ defineProps<{
         </span>
       </li>
     </ul>
+    <!-- Empty too, the box keeps the color of its threshold, so both sections read at a glance. -->
     <p
       v-else
-      class="p-3 text-sm text-slate-800 bg-tint rounded-xl"
+      class="p-3 text-sm text-slate-800 rounded-xl"
+      :class="PATTERN_STYLE[tone].surface"
     >
       {{ emptyText }}
     </p>

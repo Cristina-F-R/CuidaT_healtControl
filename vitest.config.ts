@@ -49,10 +49,12 @@ export default defineConfig({
       provider: 'v8',
       include: ['shared/src/**/*.ts'],
       exclude: ['shared/src/**/*.test.ts'],
-      // 100 % for the correlation engine and the catalog rules (TECH_SPEC.md section 6, ADR-001).
+      // 100 % for the correlation engine, the catalog rules and the report builder (TECH_SPEC.md section 6, ADR-001).
       thresholds: {
         'shared/src/correlation.ts': { lines: 100, functions: 100, branches: 100, statements: 100 },
         'shared/src/catalog.ts': { lines: 100, functions: 100, branches: 100, statements: 100 },
+        // Saved reports are read by health professionals (TECH_SPEC.md section 9.1).
+        'shared/src/reports.ts': { lines: 100, functions: 100, branches: 100, statements: 100 },
       },
     },
   },

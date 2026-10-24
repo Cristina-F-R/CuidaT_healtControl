@@ -2,6 +2,7 @@ import type { Repositories } from '../../application/ports/repositories';
 import { ApiEventRepository } from '../api/ApiEventRepository';
 import { ApiItemRepository } from '../api/ApiItemRepository';
 import { ApiProfileRepository } from '../api/ApiProfileRepository';
+import { ApiReportRepository } from '../api/ApiReportRepository';
 import { browserKeyValueStore } from '../sync/keyValueStore';
 import type { KeyValueStore } from '../sync/keyValueStore';
 import { clearOfflineCache, OfflineCache } from '../sync/OfflineCache';
@@ -42,6 +43,7 @@ export function createRepositories(source: DataSource): Repositories {
       profiles: new ApiProfileRepository(cache),
       items: new ApiItemRepository(cache),
       events: new ApiEventRepository(source.userId, getSyncQueue(), cache),
+      reports: new ApiReportRepository(),
     };
   } else {
     const guest = new GuestStorage();
@@ -49,6 +51,7 @@ export function createRepositories(source: DataSource): Repositories {
       profiles: new LocalProfileRepository(guest),
       items: new LocalItemRepository(guest),
       events: new LocalEventRepository(guest),
+      reports: null,
     };
   }
   current = { key, repositories };

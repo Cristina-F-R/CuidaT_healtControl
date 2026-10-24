@@ -1,5 +1,5 @@
-import { detectCorrelations } from '@cuidat/shared';
-import type { CorrelationWindowHours, HealthEvent, PatternCategory } from '@cuidat/shared';
+import { detectCorrelations, markPatternDays } from '@cuidat/shared';
+import type { CorrelationWindowHours, DayMark, HealthEvent, PatternCategory } from '@cuidat/shared';
 import dayjs from 'dayjs';
 import { computed } from 'vue';
 import type { ComputedRef } from 'vue';
@@ -17,12 +17,13 @@ export interface PatternView {
   symptomLabel: string;
   occurrences: number;
   category: PatternCategory;
-  /** Symptom logs that make up the pattern (consultation day marks). */
+  /** Symptom logs that make up the pattern. */
   symptomEventIds: string[];
+  /** Trigger/medication logs behind the pattern: the days marked in consultation mode. */
+  triggerEventIds: string[];
 }
 
-/** Mark of a calendar day in consultation mode (TECH_SPEC.md use case 12). */
-export type DayMark = 'watch' | 'detected';
+export type { DayMark };
 
 /** What to correlate: symptoms inside [from, to] (epoch ms), optionally limited to some lineages. */
 export interface PatternQuery {
@@ -81,6 +82,7 @@ export function collectPatterns(query: PatternQuery): PatternView[] {
     occurrences: pattern.occurrences,
     category: pattern.category,
     symptomEventIds: pattern.symptomEventIds,
+    triggerEventIds: pattern.triggerEventIds,
   }));
 }
 
@@ -96,27 +98,6 @@ export function splitByCategory(patterns: readonly PatternView[]): { watch: Patt
 export function monthPatternQuery(monthKey: string, windowHours: CorrelationWindowHours): PatternQuery {
   const monthStart = dayjs(`${monthKey}-01`);
   return { from: monthStart.valueOf(), to: monthStart.endOf('month').valueOf(), windowHours };
-}
-
-/**
- * Days to mark in consultation mode: the local days of the symptoms that make up a reported pattern.
- * "Patrón detectado" wins over "Vigilar posible patrón" on the same day.
- */
-export function markPatternDays(
-  patterns: readonly PatternView[],
-  dayOfEvent: (eventId: string) => string | undefined,
-): Map<string, DayMark> {
-  const marks = new Map<string, DayMark>();
-  for (const pattern of patterns) {
-    const mark: DayMark = pattern.category === 'Patrón detectado' ? 'detected' : 'watch';
-    for (const eventId of pattern.symptomEventIds) {
-      const dayKey = dayOfEvent(eventId);
-      if (dayKey && marks.get(dayKey) !== 'detected') {
-        marks.set(dayKey, mark);
-      }
-    }
-  }
-  return marks;
 }
 
 /**
