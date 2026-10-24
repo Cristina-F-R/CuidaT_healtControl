@@ -21,8 +21,8 @@
 Components PascalCase.vue | composables `useX.ts` | stores `useXStore.ts` | repositories `XRepository`/`LocalXRepository`/`ApiXRepository` | types PascalCase no `I` | fn/var camelCase | constants SCREAMING_SNAKE | layer folders lowercase.
 
 ## Tailwind 3.4 (tokens in tailwind.config.js)
-- No hex, no default palette colors (`white`, `red-*`). Tokens: `slate` full scale 50-950 (DEFAULT 600 #496580), peach (symptoms/warnings), sky (medication/info), mint (triggers/confirm), tint (soft bg), canvas (cells and any "white"), `danger`/`danger-dark` (destructive only).
-- Text on peach/sky/mint badges: `text-slate-800`. `text-slate` only on canvas/tint/mint/peach/slate-50/100.
+- No hex, no default palette colors (`white`, `red-*`). Tokens: `slate` full scale 50-950 (DEFAULT 600 #496580), peach (symptoms/warnings/"Patrón detectado"), sun #FFF3BA ("Vigilar posible patrón" only), sky (medication/info), mint (triggers/confirm), tint (soft bg), canvas (cells and any "white"), `danger`/`danger-dark` (destructive only).
+- Text on peach/sun/sky/mint badges: `text-slate-800`. `text-slate` only on canvas/tint/mint/peach/sun/slate-50/100. Soft-token borders/bands on canvas are < 3:1: always add icon + accessible text.
 - Font: Nunito Sans Variable self-hosted (`@fontsource-variable/nunito-sans`); no Google Fonts.
 - Class order: layout > spacing/size > typography > surface > interactive.
 - Breakpoints: Tailwind defaults; `lg:` (1024) = 3 columns, below = single column.
@@ -33,12 +33,15 @@ Components PascalCase.vue | composables `useX.ts` | stores `useXStore.ts` | repo
 - Placement: select-then-place for everyone (dock items `<button aria-pressed>`); native HTML5 drag&drop (no library) only if `matchMedia('(hover: hover) and (pointer: fine)')` (`useInteraction.ts`). Valid drop days `bg-tint/30 border-dashed border-mint`; future days stay `bg-slate-50 opacity-50`, no hover.
 - Future dates (ALL users): `const isFuture = dayjs(cellDate).isAfter(dayjs(), 'day')`; `bg-slate-50 opacity-50 cursor-not-allowed`, day button `aria-disabled="true"` (not `disabled`) -> Toast "No se pueden registrar métricas en fechas futuras."; no modal/drop; forward-month button disabled at current month.
 - `DateNavigatorPopover`: from month label; `w-64 p-3 bg-canvas border border-slate-200 rounded-2xl shadow-xl z-50`; year stepper + `grid grid-cols-3 gap-1.5` pills (`hover:bg-tint text-xs font-bold py-1.5 rounded-lg`); no future months.
+- Consultation Mode (`useViewMode.ts`, off on every load, not persisted, guests too): `role="switch"` "Modo consulta" right of the filter pills; no dock (`lg:grid-cols-[minmax(0,1fr)_276px]`); no editing affordances anywhere; day marks = keep `bg-canvas` + `border-2` + 6px top band (`sun` watch / `peach` detected, detected wins, symptom days only) + icon badge (`Eye`/`TriangleAlert`, in flow next to the day number, never over it) + aria-label suffix; legend; `aria-live` announcement.
 - Density (1M|2M|3M): `inline-flex p-1 bg-slate-100 rounded-xl gap-1 text-xs font-bold text-slate-600`; active `bg-canvas text-slate-800 shadow-sm rounded-lg px-2.5 py-1 transition-all`; guests: selector, month arrows and Quick Jump locked.
 
 ## Session/identity UI
 - Guest (client-side soft limits): 1 profile, current month only, max 3 symptoms + 3 triggers/medication (`GUEST_MAX_SYMPTOMS`/`GUEST_MAX_TRIGGERS`, rules in `shared/src/guestLimits.ts`, exposed by `useGuestLimits.ts`; archived count, deleted free a slot). Preset catalog `PRESET_ITEMS` (Vómito, Heces blandas, Malestar / dolor, Pescado, Lácteos, Medicación) seeds the GUEST profile on first load and fills the guest limit; registered profiles start empty with an "Añadir ítems de ejemplo" action (`POST .../items/presets`). Registered user with no imported profile: onboarding asks only name + type. Navigating or exceeding a limit -> Toast "Opción no disponible sin iniciar sesión." + "Crear cuenta" (opens `AuthModal`). No anonymous server users.
 - Header badge: "Modo Local" `bg-slate-100 text-slate-600 border border-slate-200`; "Sincronizado" `bg-mint/40 text-slate-800 border border-mint`; "Pendiente (N)" `bg-peach/40 text-slate-800 border border-peach`; "Sin conexión" like Modo Local.
-- `ProfileEditModal`: name, profile type (free text combobox, user can create new types), emoji, color pills, correlation window; delete disabled + tooltip when `!canDeleteProfile`.
+- Header: from `md` `grid-cols-[1fr_auto_1fr]` (logo | centered `ProfileMenu` | badge + account); below `md` two rows, `ProfileMenu` centered on the second.
+- Insights cards: watch `bg-sun` + `Eye`, detected `bg-peach` + `TriangleAlert`, `text-slate-800`, count `font-extrabold`.
+- `ProfileEditModal`: name, profile type (free text combobox, user can create new types), emoji, color pills (calendar identity: tints `ProfileMenu` and a 4px band of `CalendarPanel`; no clinical meaning), correlation window; delete disabled + tooltip when `!canDeleteProfile`.
 - Catalog: `category` locked on edit; notice that name/emoji edits are retroactive; flags edit = new version; "Archivar" primary, "Eliminar definitivamente" secondary (shows log count + acceptance checkbox before enabling `danger`).
 - `AuthModal` switch "Conservar y migrar datos locales existentes a mi cuenta" (`peer h-5 w-9 rounded-full bg-slate-300 peer-checked:bg-slate-700`).
 - `DeleteAccountModal`: confirm disabled (`opacity-50 cursor-not-allowed bg-slate-300`) until sanitized input === "ELIMINAR"; active `bg-danger hover:bg-danger-dark text-canvas font-bold transition-colors`.

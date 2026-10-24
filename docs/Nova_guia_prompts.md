@@ -13,13 +13,16 @@ Fuente: `Nova guía prompts.pdf`
 - Modo invitado con calendario del mes actual usable al abrir la app, un único perfil, sin navegación entre meses y con un máximo de 3 síntomas y 3 triggers/medicación (el catálogo base de 6 ítems ya ocupa el límite). Al intentar superarlo aparece «Opción no disponible sin iniciar sesión.» con la acción «Crear cuenta» (Fases 2 y 4).
 - Bloqueo de fechas y meses futuros para todos los usuarios (Fase 1, y validación en servidor en la Fase 3.2).
 - Alta de usuario con una opción explícita para migrar o descartar los datos locales; la importación se hace en la misma transacción que el registro, sin usuarios anónimos (Fases 3 y 4).
-- Gestión de calendarios, incluido el nombre y el avatar (Fase 4).
+- Gestión de calendarios, incluido el nombre y el avatar (Fase 4), con el color como identidad visual del calendario (Fase 4.5).
 - Ventana temporal de correlación configurable por calendario: 2, 6, 12, 24, 36 o 48 horas (Fases 2 y 4).
 - Resúmenes temporales paramétricos y filtros cruzados (Fase 4).
 - Clasificación de coincidencias:
   - **Vigilar posible patrón:** entre 3 y 6 ocurrencias.
   - **Patrón detectado:** 7 o más ocurrencias.
-- Modo de consulta de solo lectura para visitas médicas (Fase 2).
+- Modo de consulta de solo lectura para visitas médicas (Fase 2). Desde la Fase 4.5 es un interruptor global: oculta toda edición y el dock, amplía el calendario y marca los días con patrones (amarillo `sun` para vigilar y melocotón para detectados).
+- Jerarquía visual de patrones en la columna derecha con los mismos colores (Fase 4.5).
+- Informes guardados por calendario, consultables en pantalla y descargables en PDF, solo para usuarios registrados (post-fase).
+- Recuperación de contraseña por correo (post-fase, pendiente de dominio propio).
 - Ciclo de vida del catálogo: edición con versionado cuando cambia la forma de los datos, archivado reversible y eliminación definitiva con aviso de cascada (Fases 2 y 4).
 - Campo de notas de hasta 300 caracteres para todos los eventos (Fases 1 y 2).
 - Hora concreta en cada evento, con atajos por franja del día (Fase 2).
@@ -34,7 +37,7 @@ Fuente: `Nova guía prompts.pdf`
 - Resumen cronológico al pulsar el espacio vacío de un día (Fase 2).
 - Funcionamiento sin conexión para eventos, con cola de sincronización (Fase 3.2).
 
-Esta guía define el flujo de desarrollo para reconstruir CuidaT con una arquitectura limpia. Los módulos de inteligencia artificial y PDF quedan temporalmente fuera del alcance, con el fin de priorizar la calidad del TFM, la experiencia de usuario clínica y la privacidad conforme al RGPD.
+Esta guía define el flujo de desarrollo para reconstruir CuidaT con una arquitectura limpia. El módulo de inteligencia artificial queda fuera del alcance, y los informes en PDF se dejan para después del despliegue (post-fase), con el fin de priorizar la calidad del TFM, la experiencia de usuario clínica y la privacidad conforme al RGPD.
 
 ## Dependencias
 
@@ -50,7 +53,8 @@ Esta guía define el flujo de desarrollo para reconstruir CuidaT con una arquite
 | `dayjs` | Producción | Manipulación, formato y cálculo de fechas. |
 | `@lucide/vue` | Producción | Iconos vectoriales ligeros (sustituye a `lucide-vue-next`, obsoleto). |
 | `dompurify`, `@types/dompurify` | Producción / Desarrollo | Sanitización de textos para mitigar ataques XSS. |
-| `vite-plugin-pwa` | Producción | Manifiesto y *service workers* para la PWA. |
+| `vite-plugin-pwa` | Desarrollo | Manifiesto y *service workers* para la PWA. Solo actúa al compilar, así que no forma parte de la imagen de producción. |
+| `pdfmake` | Producción (post-fase) | Generación del PDF de los informes guardados en el navegador (licencia MIT, carga diferida). |
 | `localforage` | Producción | Almacenamiento asíncrono en IndexedDB y cola de sincronización sin conexión. |
 | `@sentry/vue` | Producción | Observabilidad y monitorización de errores del cliente. |
 
@@ -125,8 +129,8 @@ npm pkg set scripts.db:reset="npm run db:reset -w server"
 
 ```bash
 npm install @cuidat/shared -w client -w server
-npm install pinia dayjs @lucide/vue dompurify vite-plugin-pwa localforage @sentry/vue @fontsource-variable/nunito-sans -w client
-npm install -D tailwindcss@3 postcss autoprefixer @types/dompurify -w client
+npm install pinia dayjs @lucide/vue dompurify localforage @sentry/vue @fontsource-variable/nunito-sans -w client
+npm install -D tailwindcss@3 postcss autoprefixer @types/dompurify vite-plugin-pwa -w client
 
 cd client && npx tailwindcss init -p && cd ..
 ```
@@ -547,6 +551,67 @@ ALLOW_DB_RESET=true npm run db:reset -- --yes
 > - **Cola al eliminar un calendario:** tras un borrado correcto, `deleteCalendar` descarta las operaciones pendientes de ese calendario (`SyncQueue.discardCalendar`), porque el servidor ya borró sus registros en cascada. Así no llegan a la lista de fallidos (ADR-007). Una operación que ya se estaba enviando termina por su cuenta.
 > - **Revisión posterior:** se eliminó la copia obsoleta del proyecto dentro de `tests/`, que se había añadido por error en la Fase 2. `tests/` contiene ahora solo `tests/e2e`. Esa copia hacía que Playwright se cargara dos veces en local y que Snyk (`--all-projects`) analizara dependencias que no se usan. Se añadió `.gitattributes` para fijar los finales de línea en LF, como `.editorconfig`, y se actualizó `dompurify` a 3.4.17 (aviso crítico de `npm audit`).
 
+## Fase 4.5: modo consulta global, identidad del calendario y jerarquía visual de patrones
+
+**Objetivo:** antes del despliegue, convertir el modo consulta en una vista de solo lectura para visitas médicas que destaque los patrones en el propio calendario, y dar a los avisos y al color del calendario un significado visual claro.
+
+**Decisiones de planificación** (acordadas antes de implementar):
+- **Color del calendario:** pasa a ser la identidad del calendario. Tiñe el selector de calendarios y una franja del panel del calendario, para reconocer de un vistazo cuál está abierto.
+- **Modo consulta:**
+  - Interruptor global, a la derecha de la fila de filtros. Arranca siempre desactivado y no se recuerda entre sesiones.
+  - Disponible también para invitados.
+  - Es un estado de presentación, no un control de acceso (ADR-021).
+- **Días marcados:**
+  - Solo los días de síntoma.
+  - Cada mes visible calcula sus propios patrones, igual que la columna derecha. El cálculo sumativo entre meses queda para la post-fase (P.2).
+  - Se marcan con franja y borde, no con fondo, porque `peach` ya es el color de las tarjetas de síntoma.
+- **Nuevo token `sun` (`#FFF3BA`):**
+  - Color de «Vigilar posible patrón»; `peach` es el de «Patrón detectado».
+  - Contraste medido: `text-slate-800` 9,4:1 y `text-slate` 5,4:1.
+  - Como borde sobre `canvas` solo da 1,1:1 (y `peach`, 1,3:1), por debajo del 3:1 que pide WCAG 1.4.11 para elementos gráficos. Por eso la marca se acompaña de una insignia con icono y de texto accesible: el color nunca es el único indicador.
+- **Tarjeta en modo consulta:** se abre con toda su información, pero sin editar ni eliminar.
+- **Cabecera:** menú de calendarios en el centro. En pantallas pequeñas, dos filas.
+
+### Prompt de la Fase 4.5
+
+> **Prompt 4.5**
+>
+> Inicia la Fase 4.5 siguiendo `TECH_SPEC.md` (casos de uso 5, 6 y 12, sección 2, sección 6 y ADR-021) y `STYLE_GUIDE.md`:
+>
+> 1. **Token `sun`.** Añade `sun: '#FFF3BA'` a `tailwind.config.js`. Solo se usa para «Vigilar posible patrón», nunca para categorías de ítems. El texto sobre `sun` es `text-slate-800`.
+> 2. **Correlaciones por evento (`shared`).** Amplía `PatternThreshold` con `symptomEventIds: string[]`: los ids de los síntomas que cuentan como ocurrencia, en el orden estable de la sección 6. `occurrences` es siempre `symptomEventIds.length`. Mantén el 100 % de cobertura de `correlation.ts`.
+> 3. **Estado del modo consulta.** Crea `client/src/application/composables/useViewMode.ts` con `consultationMode` (un `ref` de módulo). Arranca en `false`, no se persiste y vuelve a `false` en `reloadWorkspace()` (inicio y cierre de sesión, borrado de cuenta). El servidor no cambia: es un estado de presentación (ADR-021).
+> 4. **Interruptor.** En `FilterBar.vue`, en la misma fila que «Ver todo / Solo síntomas / Solo triggers» pero alineado a la derecha (`justify-between`; en móvil puede bajar a la línea siguiente), añade el interruptor «Modo consulta»: un `<button role="switch" :aria-checked>` con la pista de `STYLE_GUIDE.md` (`h-5 w-9 rounded-full`, `bg-slate-300` / `bg-slate-700`). Funciona igual para invitados. Elimina el interruptor local de `DaySummaryModal.vue`.
+> 5. **Efectos del modo activo:**
+>    - No se renderiza `SidebarDock` (tampoco en móvil). En `lg`, la rejilla pasa a dos columnas (`lg:grid-cols-[minmax(0,1fr)_276px]`) y el calendario ocupa el espacio del dock.
+>    - `useInteraction` limpia la selección y no acepta ni seleccionar y colocar ni soltar.
+>    - `DaySummaryModal` se abre siempre en solo lectura.
+>    - Pulsar una tarjeta abre el detalle del registro: ítem, fecha y hora, intensidad, duración y notas, sin campos editables ni «Guardar» ni «Eliminar registro». Si `EventLogModal.vue` se acerca a las 180 líneas, extrae `EventDetailPanel.vue`.
+>    - `ProfileMenu` oculta «Editar calendario» y «Nuevo calendario»; cambiar de calendario sigue permitido. `AccountMenu` oculta «Eliminar cuenta». El gestor del catálogo no es accesible.
+>    - Siguen disponibles: navegación de meses, `1M | 2M | 3M`, filtros, «Ver resúmenes», cambio de calendario y cierre de sesión.
+>    - Un anuncio `aria-live="polite"` dice «Modo consulta activado» o «Modo consulta desactivado».
+> 6. **Días con patrón (solo en modo consulta).**
+>    - **Cálculo:** cada mes visible calcula sus patrones con la misma consulta que la columna derecha: los síntomas del mes, los desencadenantes desde una ventana antes y la ventana del calendario. Un día se marca si contiene algún síntoma de `symptomEventIds`; «Patrón detectado» tiene prioridad sobre «Vigilar posible patrón». El día se calcula en la zona horaria local, como el resto del calendario.
+>    - **Marca:** franja superior de 6 px y borde de 2 px (`sun` o `peach`) sin cambiar el fondo `bg-canvas` de la celda, más una insignia con icono (`Eye` para vigilar, `TriangleAlert` para detectado) y `text-slate-800` sobre el color.
+>    - **Texto accesible:** el `aria-label` del botón del día termina en «· Vigilar posible patrón» o «· Patrón detectado».
+>    - **Filtros:** la marca no depende del filtro activo.
+>    - **Leyenda:** encima del calendario, una leyenda breve con los dos colores e iconos.
+> 7. **Columna derecha (siempre).** En `PatternSection.vue`, las tarjetas de «Vigilar posible patrón» usan `bg-sun` y las de «Patrón detectado» `bg-peach`, con `text-slate-800`, el mismo icono que en el punto 6 y el número de ocurrencias destacado.
+> 8. **Cabecera.** Desde `md`, `AppHeader.vue` tiene tres zonas (`grid grid-cols-[1fr_auto_1fr]`): logo a la izquierda, `ProfileMenu` centrado, y estado de sincronización y cuenta a la derecha. Por debajo de `md`, dos filas: logo con estado y cuenta arriba, y `ProfileMenu` centrado debajo.
+> 9. **Identidad del calendario.** `colorTheme` tiñe el avatar y el fondo del botón de `ProfileMenu`, y una franja superior de 4 px en `CalendarPanel.vue`. Bajo las píldoras de `ProfileColorField.vue` aparece: «Te ayuda a reconocer el calendario de un vistazo.»
+> 10. **Pruebas.**
+>     - Unitarias: `symptomEventIds` (instantes idénticos, varias versiones del mismo linaje y síntomas sin desencadenante), clasificación por día con la ventana previa al mes y prioridad de «detectado».
+>     - Componentes: con el modo activo no hay ningún control de edición, el dock no se renderiza y el detalle del registro es de solo lectura.
+>     - E2E (`tests/e2e/consultation.spec.ts`): siembra los datos (la clave del invitado o la API) en lugar de crearlos por la interfaz. Activa el modo y comprueba que desaparece el dock, que un día con patrón tiene la marca y su texto accesible, y que un registro se abre sin «Eliminar registro». Desactívalo y comprueba que todo vuelve.
+> 11. Confirma que ningún `.vue` supera las 180 líneas y que `npm run typecheck`, `npm run lint`, `npm run test:coverage` y `npm run test:e2e` terminan correctamente.
+
+> **Decisiones tomadas al implementar la Fase 4.5:**
+> - **Detalle del registro:** es un overlay propio, `EventDetailModal.vue`, que reutiliza `DaySummaryRow` en solo lectura, en vez de un modo dentro de `EventLogModal`. Así el formulario de edición no gana ramas y la vista de consulta no puede guardar nada por error. Se cierra con el botón de `AppModal`; un segundo «Cerrar» habría repetido el mismo nombre accesible.
+> - **Insignia del día:** va junto al número, en el flujo de la celda, no superpuesta. En móvil, superpuesta tapaba el número; ahora baja de línea cuando no cabe.
+> - **Columna derecha:** `PatternSection` recibe `tone` (`watch` o `detected`) en lugar de título y superficie. El mismo componente sirve para la columna y para «Ver resúmenes», así que los dos lugares usan los mismos colores.
+> - **Menú de calendarios:** el botón toma el color del calendario y el avatar de dentro va sobre `canvas`, para que contraste con él. En la lista, cada avatar lleva el color de su calendario.
+> - **Pruebas:** el escenario con patrones conocidos está en `client/src/testing/patternGuestDocument.ts`. El E2E tiene su propia copia del mismo escenario, porque compartir el archivo acoplaría la resolución `nodenext` de Playwright con la de `vue-tsc`. Las dos suites fijan la fecha (`vi.setSystemTime` y `page.clock`) para que el resultado no dependa del día en que se ejecutan.
+
 ## Fase 5: despliegue en Render
 
 **Objetivo:** publicar la demo en una URL pública para que el profesor la pruebe. El código, el CI y la imagen viven en GitHub; la aplicación se ejecuta en Render (servicio web gratuito, ADR-019) y los datos en Neon.
@@ -573,3 +638,111 @@ ALLOW_DB_RESET=true npm run db:reset -- --yes
 > 5. Añade un flujo opcional `.github/workflows/keep-warm.yml`, programado cada 10 minutos, que haga una petición a `/api/health` de la URL pública (variable `PUBLIC_URL`). Déjalo desactivado por defecto y documenta que es opcional.
 > 6. Documenta en el README: la URL pública, que la primera carga puede tardar hasta un minuto, cómo probar el modo invitado y cómo registrarse, y el aviso de privacidad de los datos de la demo.
 > 7. Verifica en local con `docker compose up` que la imagen sirve el cliente y la API desde `http://localhost:3000` y que el inicio de sesión funciona con la cookie.
+
+## Post-fase: mejoras posteriores al despliegue
+
+**Objetivo:** mejoras planificadas para después de la Fase 5. Cada una va en su propia rama y su propio *pull request*. El diseño de referencia está en `TECH_SPEC.md`, sección 9.
+
+### P.1. Informes guardados
+
+**Decisiones de diseño:**
+- **Qué es un informe:** una instantánea inmutable de un calendario en un periodo, con la selección de síntomas y desencadenantes que el usuario hizo en «Ver resúmenes». Se ve igual siempre, aunque después se editen o borren registros o ítems.
+- **Quién lo calcula:** el servidor, a partir de los parámetros (calendario, periodo, zona horaria y selección). Nunca se guarda un informe calculado o generado en el cliente: así no se puede almacenar contenido arbitrario y el cálculo es el mismo que el de la aplicación (`detectCorrelations` de `shared`).
+- **Qué se guarda:** un JSON versionado (`schemaVersion`), no un archivo PDF. De esa misma instantánea salen la vista en pantalla y el PDF, así que los dos coinciden siempre. Guardar el binario obligaría a fiarse de un archivo generado en el cliente, ocuparía más espacio en Neon (0,5 GB en el plan gratuito) y no serviría para la vista en pantalla.
+- **PDF:** se genera en el navegador con `pdfmake` (licencia MIT), cargado solo al descargar. Es un documento maquetado con la fuente y los colores de CuidaT, no una captura de pantalla. Los datos de salud no salen hacia ningún servicio externo.
+- **Límites:**
+  - Solo usuarios registrados y con conexión.
+  - Máximo 5 informes por usuario, comprobado en el servidor.
+  - Periodo de 12 meses como máximo.
+  - Instantánea de 1 MB como máximo.
+- **RGPD:** los informes se borran con su calendario y con la cuenta (en cascada) y se incluyen en «Descargar mis datos».
+- **Confirmación al eliminar un calendario:** si el calendario tiene informes guardados, el mensaje de confirmación lo dice expresamente e invita a descargarlos antes, porque se perderán con él.
+
+> **Prompt P.1**
+>
+> Implementa los informes guardados (`TECH_SPEC.md`, sección 9.1):
+>
+> 1. **Migración `003_health_reports.sql`.** Tabla `health_reports`:
+>    - Columnas: `id`, `calendar_id`, `title` (1-120, sin vacíos), `period_from` y `period_to` (`DATE`, con `CHECK (period_to >= period_from)`), `snapshot` (`JSONB`) y `created_at`.
+>    - `calendar_id` → `calendar_profiles(id) ON DELETE CASCADE`.
+>    - Índice por `calendar_id`.
+>    - Como no tiene `user_id`, se accede siempre con `JOIN calendar_profiles`.
+> 2. **Dominio en `shared`:**
+>    - `reports.ts`: `buildReportSnapshot(...)` es una función pura y determinista, con tests al 100 %. A partir del perfil, los ítems, los registros, el periodo y la zona horaria IANA, devuelve:
+>      - `calendar`: nombre, tipo, avatar, color y ventana;
+>      - `period` y `selection`: linajes con su nombre, emoji y categoría en el momento de generarlo;
+>      - `patterns`: detectados y a vigilar, con ocurrencias;
+>      - `itemStats`: número de registros, distribución y media de intensidad, y duración total y media;
+>      - `days`: por día, los registros con hora, ítem, intensidad, duración y notas, y la marca `watch` o `detected` con las reglas del modo consulta;
+>      - `months`: los meses que abarca el periodo.
+>    - Constantes `REPORTS_MAX_PER_USER = 5`, `REPORT_MAX_MONTHS = 12` y `REPORT_SNAPSHOT_MAX_BYTES`.
+>    - Esquema Zod `reportCreateSchema`: `calendarId`, `from` y `to` (sin fechas futuras, como máximo 12 meses), `timeZone` (validada con `Intl`), `symptomRootIds`, `triggerRootIds` y `title` opcional, que se sanea.
+> 3. **API (con sesión, Zod, ids UUID, consultas filtradas por usuario):**
+>    - `GET /api/reports`: solo metadatos, sin la instantánea.
+>    - `POST /api/reports`: genera y guarda.
+>    - `GET /api/reports/:id`: el informe completo.
+>    - `DELETE /api/reports/:id`.
+>    - Al crear, en una transacción: bloquea la fila del usuario (`SELECT ... FOR UPDATE`), cuenta sus informes y, si ya tiene 5, responde 409 `REPORT_LIMIT` con «Has alcanzado el máximo de 5 informes. Elimina uno para guardar otro.».
+>    - Un informe de otro usuario responde 404.
+> 4. **Cliente:**
+>    - Puerto `ReportRepository` con `ApiReportRepository` (no hay versión local: los invitados no tienen informes) y `useReportStore` con `resetState()`.
+>    - En `CorrelationFilterModal.vue`, botón «Guardar informe» con título opcional. Invitados: aviso «Opción no disponible sin iniciar sesión.». Sin conexión: desactivado con una explicación.
+>    - En `AccountMenu.vue`, entrada «Informes guardados»: lista con «N de 5», calendario, periodo y fecha, y las acciones «Ver», «Descargar PDF» y «Eliminar» (con confirmación).
+> 5. **Vista en pantalla (`ReportView.vue`):**
+>    - De arriba abajo: datos del calendario, periodo y ventana de correlación, patrones detectados (`peach`) y a vigilar (`sun`), estadísticas por ítem, minicalendarios de los meses del periodo y el resumen cronológico escrito con notas, intensidades y duraciones.
+>    - Los minicalendarios (`ReportMiniMonth.vue`) muestran solo los ítems seleccionados y los días marcados como en el modo consulta. Se dibujan desde la instantánea, sin leer los stores.
+>    - Ningún componente supera las 180 líneas.
+> 6. **PDF (`client/src/infrastructure/pdf/reportPdf.ts`):**
+>    - **Carga y contenido:** `import('pdfmake')` solo al pulsar «Descargar PDF». Mismo contenido y orden que la vista; minicalendarios como tablas con celdas coloreadas.
+>    - **Colores y fuente:** los colores salen de una constante compartida con `tailwind.config.js`. Fuente Nunito Sans en TTF (licencia OFL) en `client/src/assets/fonts/`.
+>    - **Archivo:** `cuidat-informe-{calendario}-{aaaa-mm-dd}.pdf`, con el nombre saneado. Se descarga con `URL.createObjectURL` y se revoca enseguida.
+>    - **PWA:** excluye el *chunk* de `pdfmake` y las fuentes de la caché inicial de la PWA (`workbox.globIgnores`).
+>    - **CSP:** comprueba que funciona con la CSP de Helmet sin añadir `'unsafe-eval'`. Si no es posible, usa `jspdf` con `jspdf-autotable` (también MIT).
+> 7. **RGPD y observabilidad:**
+>    - Incluye los informes en «Descargar mis datos».
+>    - En `ProfileDeleteSection.vue`, el mensaje de confirmación cuenta los informes del calendario (con los metadatos de `GET /api/reports`; un invitado tiene 0):
+>      - **Sin informes:** «¿Seguro que quieres eliminar «{nombre}»? También se borrarán sus ítems y todos sus registros. Esta acción no se puede deshacer.»
+>      - **Con informes:** «¿Seguro que quieres eliminar «{nombre}»? También se borrarán sus ítems, todos sus registros y {el informe guardado | los N informes guardados} de este calendario. Si quieres conservarlos, descárgalos en PDF antes de continuar. Esta acción no se puede deshacer.»
+>    - Comprueba con un test que las peticiones y respuestas de `/api/reports` no llegan a Sentry.
+> 8. **Pruebas:**
+>    - Integración: límite de 5 con dos peticiones simultáneas, IDOR (el informe de otro usuario da 404), cascada al borrar el calendario y la cuenta, periodo futuro o de más de 12 meses rechazado, e instantánea demasiado grande rechazada.
+>    - E2E: crear, ver, descargar (evento `download` de Playwright) y eliminar.
+
+### P.2. Resaltado sumativo en la vista multimes
+
+**Decisión:** técnicamente es poco trabajo, porque los meses visibles ya están cargados y basta con calcular los patrones sobre todo el rango en vez de mes a mes. La decisión real es de coherencia: si el calendario suma tres meses, la columna derecha debe describir ese mismo periodo. Si no, un patrón aparecería como «detectado» en los días y como «vigilar» en la columna.
+
+> **Prompt P.2**
+>
+> En modo consulta con `2M` o `3M`, calcula los patrones sobre el rango visible completo (desde el inicio del mes más antiguo menos la ventana hasta el final del más reciente) y usa ese resultado para marcar los días de todos los meses. La columna derecha pasa a describir el mismo rango y su título indica el periodo. Con `1M`, el comportamiento no cambia. Añade tests de un patrón que solo llega a 7 ocurrencias al sumar dos meses.
+
+### P.3. Recuperación de contraseña (bloqueada hasta tener dominio propio)
+
+**Decisiones:**
+- **Neon Auth:** se evaluó y se descarta. Sustituye por completo la autenticación actual (usuarios, sesiones, middleware), sus correos llevan la marca de Neon y en producción exige un SMTP propio.
+- **Lo que se hará:** se mantiene la autenticación propia y se envían los correos con Resend (plan gratuito: unos 3.000 al mes y 100 al día).
+- **Requisito previo:** un dominio propio verificado en Resend. El subdominio de Render no sirve.
+
+> **Prompt P.3**
+>
+> Implementa la recuperación de contraseña (`TECH_SPEC.md`, sección 9.3):
+>
+> 1. **Migración `004_password_reset.sql`:**
+>    - Tabla `password_reset_tokens`: `id`, `user_id` con `ON DELETE CASCADE`, `token_hash` (SHA-256; el token nunca se guarda en claro), `expires_at` (30 minutos) y `used_at`.
+>    - Columna `users.password_changed_at`.
+> 2. **`POST /api/auth/password/forgot` `{ email }`:**
+>    - Responde siempre 202 con el mismo mensaje y un tiempo de respuesta parecido, exista o no la cuenta, para no revelar qué correos están registrados.
+>    - Mismo límite de peticiones que el inicio de sesión.
+>    - Invalida los tokens anteriores del usuario.
+> 3. **`POST /api/auth/password/reset` `{ token, newPassword }`:**
+>    - Valida el token: existe, no ha caducado y no se ha usado.
+>    - Guarda el nuevo hash bcrypt, marca el token como usado y actualiza `password_changed_at`, todo en una transacción.
+>    - El middleware de sesión rechaza los JWT emitidos antes de `password_changed_at`: así se cierran las sesiones abiertas, aunque el JWT no tenga estado.
+> 4. **Envío de correos:**
+>    - Puerto `EmailSender` con dos adaptadores: `ResendEmailSender` (producción) y `ConsoleEmailSender` (desarrollo y tests; en producción nunca registra el token).
+>    - Variables `RESEND_API_KEY` y `EMAIL_FROM`.
+>    - El correo no contiene datos de salud.
+> 5. **Enlace y pantallas:**
+>    - Enlace `{CLIENT_ORIGIN}/restablecer#token=...`. El token va en el fragmento, así que no llega al servidor ni aparece en registros ni en la cabecera `Referer`. El cliente lo envía en el cuerpo de la petición.
+>    - Pantallas «¿Has olvidado tu contraseña?» (en `AuthModal.vue`) y «Nueva contraseña».
+> 6. **Pruebas:** token caducado o reutilizado, respuesta idéntica para correos que no existen, cierre de las sesiones previas y límite de peticiones.
