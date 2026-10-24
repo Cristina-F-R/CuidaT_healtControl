@@ -15,6 +15,9 @@ RUN npm ci
 COPY shared shared
 COPY client client
 COPY server server
+# Client build-time settings: Vite inlines them into the bundle. VITE_API_URL stays empty (same origin, /api).
+ARG VITE_SENTRY_DSN=""
+ENV VITE_SENTRY_DSN=${VITE_SENTRY_DSN}
 RUN npm run build -w shared && npm run build -w client && npm run build -w server \
  && npm prune --omit=dev
 
