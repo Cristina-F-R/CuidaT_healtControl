@@ -62,6 +62,18 @@ describe('SyncQueue (ADR-007)', () => {
     expect(entries[0]).toMatchObject({ payload: { isNew: false, log: { intensity: 3 } } });
   });
 
+  it('discards the pending operations of a deleted calendar, but not the ones in flight', async () => {
+    await queue.enqueueUpsert(USER, log('a'), true, false);
+    await queue.enqueueDelete(USER, CALENDAR, 'b');
+    await queue.enqueueUpsert(USER, log('c'), true, false);
+    await queue.enqueueUpsert(USER, log('other', { calendarId: 'c-2' }), true, false);
+    const sending = (await queue.all()).find((entry) => entry.entityId === 'c')!;
+    queue.markInFlight(sending.opId);
+    await queue.discardCalendar(CALENDAR);
+    const entries = await queue.all();
+    expect(entries.map((entry) => entry.entityId)).toEqual(['c', 'other']);
+  });
+
   it('serialises concurrent writes', async () => {
     await Promise.all(['a', 'b', 'c', 'd'].map((id) => queue.enqueueUpsert(USER, log(id), true, false)));
     expect((await queue.all()).map((entry) => entry.entityId)).toEqual(['a', 'b', 'c', 'd']);

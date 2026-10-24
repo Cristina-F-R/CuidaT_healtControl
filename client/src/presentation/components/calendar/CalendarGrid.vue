@@ -1,23 +1,27 @@
 <script setup lang="ts">
-import { storeToRefs } from 'pinia';
-import { useCalendar } from '../../../application/composables/useCalendar';
+import { computed } from 'vue';
+import { buildSlots, monthLabelOf } from '../../../application/composables/useCalendar';
 import { useDayEntries } from '../../../application/composables/useDayEntries';
 import type { DayEntry } from '../../../application/composables/useDayEntries';
 import { useInteraction } from '../../../application/composables/useInteraction';
 import { useOverlays } from '../../../application/composables/useOverlays';
 import { usePlacement } from '../../../application/composables/usePlacement';
-import { useProfileStore } from '../../../application/stores/useProfileStore';
 import CalendarDayCell from './CalendarDayCell.vue';
-import CalendarHeader from './CalendarHeader.vue';
 
 const WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] as const;
 
-const { slots } = useCalendar();
+// One month of the calendar (`YYYY-MM`). Several grids are stacked for the 2M and 3M density.
+const props = defineProps<{
+  monthKey: string;
+  /** Shows the month name above the grid (stacked months); a single month is named by the header. */
+  showTitle: boolean;
+}>();
+
+const slots = computed(() => buildSlots(props.monthKey));
 const { entriesByDay } = useDayEntries();
 const { draggingItemId, isDragging, endDrag } = useInteraction();
 const { placeItem, activateDay } = usePlacement();
 const { openOverlay } = useOverlays();
-const { activeProfile } = storeToRefs(useProfileStore());
 
 function onDropItem(dayKey: string): void {
   if (draggingItemId.value) {
@@ -33,11 +37,13 @@ function onOpenEvent(entry: DayEntry): void {
 </script>
 
 <template>
-  <section
-    aria-labelledby="calendar-title"
-    class="flex min-w-0 flex-col gap-4 p-3 bg-canvas rounded-2xl border border-slate-100 shadow-sm sm:p-4 lg:p-6"
-  >
-    <CalendarHeader :profile-name="activeProfile.name" />
+  <div class="flex flex-col gap-2">
+    <h3
+      v-if="showTitle"
+      class="text-lg font-semibold text-slate-800"
+    >
+      {{ monthLabelOf(monthKey) }}
+    </h3>
     <div
       aria-hidden="true"
       class="grid grid-cols-7 gap-1 text-center text-xs font-bold text-slate sm:gap-1.5"
@@ -47,6 +53,7 @@ function onOpenEvent(entry: DayEntry): void {
         :key="weekday"
       >{{ weekday }}</span>
     </div>
+    <!-- No fixed row height: cells grow so no card is ever hidden (ADR-004). -->
     <ol class="grid grid-cols-7 gap-1 sm:gap-1.5">
       <li
         v-for="(slot, index) in slots"
@@ -64,5 +71,5 @@ function onOpenEvent(entry: DayEntry): void {
         />
       </li>
     </ol>
-  </section>
+  </div>
 </template>

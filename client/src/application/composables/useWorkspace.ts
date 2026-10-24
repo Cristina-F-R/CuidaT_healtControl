@@ -9,10 +9,16 @@ import { useItemDefinitionStore } from '../stores/useItemDefinitionStore';
 import { useProfileStore } from '../stores/useProfileStore';
 import { useSyncStore } from '../stores/useSyncStore';
 import { useCalendar } from './useCalendar';
+import { useInteraction } from './useInteraction';
+import { resetMonthDensity, useMultiMonth } from './useMultiMonth';
 import { useToast } from './useToast';
 
 // The workspace needs an active profile to render, so App.vue waits for `ready` (also on reloads).
-const useWorkspaceStore = defineStore('workspace', () => ({ ready: ref(false), loadError: ref<string | null>(null) }));
+const useWorkspaceStore = defineStore('workspace', () => ({
+  ready: ref(false),
+  loadError: ref<string | null>(null),
+  needsOnboarding: ref(false),
+}));
 
 export function useWorkspaceReady(): Readonly<Ref<boolean>> {
   return readonly(storeToRefs(useWorkspaceStore()).ready);
@@ -21,6 +27,11 @@ export function useWorkspaceReady(): Readonly<Ref<boolean>> {
 /** Why the workspace could not load (for example, offline with no cached copy). */
 export function useWorkspaceLoadError(): Readonly<Ref<string | null>> {
   return readonly(storeToRefs(useWorkspaceStore()).loadError);
+}
+
+/** A signed-in account without any calendar: App.vue shows «Crea tu primer calendario». */
+export function useNeedsOnboarding(): Readonly<Ref<boolean>> {
+  return readonly(storeToRefs(useWorkspaceStore()).needsOnboarding);
 }
 
 /** Profile seeded on the first guest load (the demo calendar). */
@@ -32,43 +43,78 @@ const GUEST_PROFILE_DRAFT: ProfileDraft = {
   correlationWindowHours: 48,
 };
 
-/**
- * Account without any calendar (registered without guest data). Until the «Crea tu primer
- * calendario» onboarding of Phase 4, an empty calendar is created with default values.
- */
-const FIRST_ACCOUNT_PROFILE_DRAFT: ProfileDraft = {
-  name: 'Mi calendario',
-  profileType: 'Adulto',
-};
+/** Catalog and logs of one calendar (the initial range, ADR-007). Drops any selected dock item. */
+async function loadCalendarData(calendarId: string): Promise<void> {
+  useInteraction().clearSelection();
+  await Promise.all([useItemDefinitionStore().loadItems(calendarId), useEventStore().loadLogs(calendarId)]);
+}
 
 /**
  * Loads the calendars, the catalog and the logs of the active calendar. On the very first guest
- * load (no profile stored yet) it seeds the guest profile with the sample catalog.
+ * load (no profile stored yet) it seeds the guest profile with the sample catalog. An account
+ * without calendars gets the onboarding instead (TECH_SPEC.md use case 6).
  */
 export async function loadWorkspace(): Promise<void> {
   const workspace = useWorkspaceStore();
   const authStore = useAuthStore();
   const profileStore = useProfileStore();
   const itemStore = useItemDefinitionStore();
-  const eventStore = useEventStore();
 
   workspace.loadError = null;
   try {
     await profileStore.loadProfiles();
-    if (profileStore.profiles.length === 0) {
-      const profile = await profileStore.createProfile(authStore.isGuest ? GUEST_PROFILE_DRAFT : FIRST_ACCOUNT_PROFILE_DRAFT);
-      if (authStore.isGuest) {
-        await itemStore.addPresetItems(profile.id);
-      }
+    if (profileStore.profiles.length === 0 && authStore.isGuest) {
+      const profile = await profileStore.createProfile(GUEST_PROFILE_DRAFT);
+      await itemStore.addPresetItems(profile.id);
     }
-    const calendarId = profileStore.activeProfileId;
-    await Promise.all([itemStore.loadItems(calendarId), eventStore.loadLogs(calendarId)]);
+    workspace.needsOnboarding = profileStore.profiles.length === 0;
+    if (!workspace.needsOnboarding) {
+      await loadCalendarData(profileStore.activeProfileId);
+    }
   } catch (error) {
     workspace.loadError = userMessageOf(error);
     return;
   }
   await useSyncStore().refreshCounts();
   workspace.ready = true;
+}
+
+/** «Crea tu primer calendario»: creates it with default values for the rest and opens the workspace. */
+export async function completeOnboarding(draft: ProfileDraft): Promise<void> {
+  const profile = await useProfileStore().createProfile(draft);
+  await loadCalendarData(profile.id);
+  useWorkspaceStore().needsOnboarding = false;
+  await useSyncStore().refreshCounts();
+}
+
+/** Makes another calendar the active one and loads its catalog and logs. */
+export async function switchCalendar(calendarId: string): Promise<void> {
+  const profileStore = useProfileStore();
+  if (calendarId === profileStore.activeProfileId) {
+    return;
+  }
+  await loadCalendarData(calendarId);
+  profileStore.activeProfileId = calendarId;
+}
+
+/** Creates a calendar and makes it the active one (registered users only; the guest limit is checked by the store). */
+export async function createCalendar(draft: ProfileDraft): Promise<void> {
+  const profile = await useProfileStore().createProfile(draft);
+  await switchCalendar(profile.id);
+}
+
+/**
+ * Deletes a calendar (ADR-003) and shows the one that takes its place when it was the active one. Its
+ * logs still waiting in the sync queue are dropped: the server erased the calendar with them.
+ */
+export async function deleteCalendar(calendarId: string): Promise<void> {
+  const profileStore = useProfileStore();
+  const wasActive = calendarId === profileStore.activeProfileId;
+  await profileStore.deleteProfile(calendarId);
+  await useSyncStore().discardCalendar(calendarId);
+  if (wasActive) {
+    await loadCalendarData(profileStore.activeProfileId);
+  }
 }
 
 /** Empties every data store and loads the workspace again (sign-in, sign-out, account deletion). */
@@ -81,19 +127,20 @@ export async function reloadWorkspace(): Promise<void> {
   if (useAuthStore().isGuest) {
     useCalendar().goToday();
   }
+  resetMonthDensity();
   await loadWorkspace();
 }
 
 /**
- * Registered users can go back in time: when the visible month is older than the loaded range,
+ * Registered users can go back in time: when the oldest visible month is older than the loaded range,
  * its logs (and the correlation window before it) are fetched. Call once from App.vue.
  */
 export function useMonthLoader(): void {
-  const { activeMonthKey } = useCalendar();
+  const { oldestMonthKey } = useMultiMonth();
   const profileStore = useProfileStore();
   const eventStore = useEventStore();
   const { showToast } = useToast();
-  watch(activeMonthKey, async (monthKey) => {
+  watch(oldestMonthKey, async (monthKey) => {
     if (!profileStore.activeProfileId) {
       return;
     }

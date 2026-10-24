@@ -9,6 +9,8 @@ export type Intensity = 1 | 2 | 3;
 
 export type CorrelationWindowHours = 2 | 6 | 12 | 24 | 36 | 48;
 
+export type ProfileColorTheme = 'slate' | 'peach' | 'sky' | 'mint';
+
 export type PatternCategory = 'Vigilar posible patrón' | 'Patrón detectado';
 
 export type AuthMode = 'guest' | 'authenticated';
@@ -19,7 +21,7 @@ export interface CalendarProfile {
   /** Free text defined by the user (Mascota, Niño/a, Adulto, or any custom type). */
   profileType: string;
   avatarIcon: string;
-  colorTheme: string;
+  colorTheme: ProfileColorTheme;
   correlationWindowHours: CorrelationWindowHours;
   createdAt: string;
 }

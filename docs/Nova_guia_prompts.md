@@ -491,8 +491,8 @@ ALLOW_DB_RESET=true npm run db:reset -- --yes
 > - **Rutas del catálogo:** `:rootId` es el id de la primera versión del linaje. Editar, archivar, restaurar, el impacto y el borrado actúan sobre el linaje completo, y la respuesta devuelve todas sus versiones. Las reglas siguen siendo las funciones puras de `shared/src/catalog.ts`. El repositorio las ejecuta sobre el linaje bloqueado (`SELECT … FOR UPDATE`) y escribe la diferencia en una transacción, primero el `superseded` y después la versión nueva.
 > - **Puertos del cliente:** pasan a ser operaciones (`create`, `edit`, `archive`, `restore`, `deleteImpact`, `removeLineage`, `addPresets`) en lugar de «guardar la lista». Con la API, las reglas las aplica el servidor. Los repositorios locales aplican las mismas reglas de `shared`.
 > - **`authMode`** se deriva de la sesión. Los stores resuelven el repositorio en cada llamada (`currentRepositories()`), así que iniciar o cerrar sesión cambia el origen de los datos y recarga el espacio de trabajo.
-> - **Registro:** envía el calendario local como `guestData` y, tras una respuesta correcta, borra `@cuidat_guest_v1` y su copia (ADR-020). El interruptor para no migrar sigue en la Fase 4.
-> - **Cuenta sin calendarios:** hasta el onboarding de la Fase 4 se crea «Mi calendario» (tipo «Adulto»), vacío.
+> - **Registro:** envía el calendario local como `guestData` y, tras una respuesta correcta, borra `@cuidat_guest_v1` y su copia (ADR-020). El interruptor para no migrar llegó en la Fase 4.
+> - **Cuenta sin calendarios:** hasta la Fase 4 se creaba «Mi calendario» (tipo «Adulto»), vacío. Desde la Fase 4 se muestra el onboarding «Crea tu primer calendario».
 > - **Registros que vienen de la cola:** `PUT /events/:id` acepta `deferred: true` para los registros grabados antes y enviados después (sin conexión o en reintentos). Esos se aceptan aunque su ítem esté archivado o sustituido, como pide el ADR-007. El primer envío inmediato con conexión va con `deferred: false`, y el servidor rechaza los ítems archivados. Un registro no puede cambiar de ítem.
 > - **Cola:** las entradas siguen la forma del ADR, con `userId`, `isNew` y `offline` en `payload`. La cola nunca fusiona una operación sobre otra que se está enviando, para que el acuse de recibo no borre una edición posterior. Las de otra cuenta no se envían. Un 429 se reintenta igual que un 5xx. Un 401 detiene el vaciado sin gastar intentos y pide iniciar sesión.
 > - **Caché sin conexión (`@cuidat_cache_v1`, IndexedDB):** guarda los últimos perfiles, ítems y registros leídos de la API, para que la PWA abra sin red. Es del usuario que la creó, y se borra al cerrar sesión y al eliminar la cuenta. El *service worker* solo guarda la aplicación, nunca respuestas de la API.
@@ -508,12 +508,12 @@ ALLOW_DB_RESET=true npm run db:reset -- --yes
 
 > **Prompt 3.3**
 >
-> Crea la integración continua:
+> Crea la integración continua (acciones de terceros fijadas a su SHA, A08):
 >
 > 1. `.github/workflows/ci.yml` con dos trabajos. `quality`: instalación con `npm ci`, `npm run typecheck`, `npm run lint`, `npm run test:coverage` y `npm audit --omit=dev --audit-level=high` (A06). Las vulnerabilidades de herramientas de desarrollo que dependan de Tailwind 3 se documentan como riesgo aceptado. `e2e`: instala Chromium, ejecuta `ALLOW_DB_RESET=true npm run db:reset -- --yes` contra la rama `test` de Neon (secretos `DATABASE_URL`, `DATABASE_URL_DIRECT`, `JWT_SECRET`) y lanza `npm run test:e2e`. Usa `concurrency` para que no haya dos ejecuciones E2E a la vez sobre la misma rama y sube el informe de Playwright como artefacto.
-> 2. `.github/workflows/snyk.yml` con el análisis de dependencias de Snyk (secreto `SNYK_TOKEN`) en cada *pull request* y de forma semanal.
-> 3. Publica la imagen Docker en GitHub Container Registry en cada fusión a `main`. El despliegue se describe en la Fase 5 (Render).
-> 4. Documenta en el README los secretos necesarios, la URL pública de la demo y que `main` debe exigir ambos trabajos antes de fusionar.
+> 2. `.github/workflows/snyk.yml` con el trabajo `dependencies`: análisis de dependencias de producción con Snyk (secreto `SNYK_TOKEN`, umbral `high`) en cada *pull request* y cada semana.
+> 3. `.github/workflows/docker-publish.yml`: publica la imagen Docker en GitHub Container Registry (`latest` y `sha-<commit>`) en cada fusión a `main`. El despliegue se describe en la Fase 5 (Render).
+> 4. Documenta en el README los secretos necesarios, la URL pública de la demo y que `main` debe exigir los trabajos `quality`, `e2e` y `dependencies` antes de fusionar (`STYLE_GUIDE.md`).
 
 ## Fase 4: ergonomía multimes y analítica
 
@@ -534,6 +534,18 @@ ALLOW_DB_RESET=true npm run db:reset -- --yes
 > 7. Crea la pantalla de gestión del catálogo con el ciclo de vida de la spec: edición según las reglas de versionado, sección «Archivados» con «Restaurar» y eliminación definitiva con recuento de registros y casilla de aceptación.
 > 8. Confirma que el diseño es responsivo (`lg`) y que ningún componente `.vue` supera las 180 líneas de código. El límite no se aplica a pruebas, stores, migraciones SQL ni configuración.
 > 9. Comprueba que `npm run typecheck`, `npm run lint`, `npm run test:coverage` y `npm run test:e2e` finalizan correctamente.
+
+> **Decisiones tomadas al implementar la Fase 4:**
+> - **Selector de calendarios:** el prompt exige poder eliminar perfiles (`canDeleteProfile`) pero no dice dónde se crean ni se cambian. `ProfileMenu.vue` sustituye a la etiqueta del perfil en la cabecera: lista los calendarios, «Editar calendario» y «Nuevo calendario». Para invitados, «Nuevo calendario» muestra el aviso «Opción no disponible sin iniciar sesión.». Cambiar o borrar el calendario activo recarga su catálogo y sus registros.
+> - **`ProfileEditModal.vue`** sirve para crear y para editar. Expone nombre, tipo, avatar, tema de color y ventana. El color (`ProfileColorField.vue`) se elige con píldoras de la paleta (`slate`, `peach`, `sky`, `mint`; `PROFILE_COLOR_THEMES` en `shared`) y tiñe el avatar del selector de calendarios. Se valida en el dominio, en los esquemas Zod y en la base de datos (migración `002_color_theme_check.sql`). El tipo es un `<input list>` con `<datalist>`: sugiere Mascota, Niño/a y Adulto más los tipos ya usados, y uno nuevo se crea al escribirlo. Eliminar pide confirmación y avisa de que se borran ítems y registros.
+> - **Onboarding:** `loadWorkspace` ya no crea «Mi calendario». Una cuenta sin calendarios muestra `FirstCalendarOnboarding.vue` (solo nombre y tipo) y la cabecera sin menú de calendarios. Las que migraron un calendario no lo ven. El estado vacío del dock ofrece «Añadir ítems de ejemplo» solo a cuentas registradas y sin ningún ítem.
+> - **Registro:** `AuthModal.vue` añade el interruptor (activado por defecto). Desactivado, `guestData` **no se envía**; en ambos casos, tras un registro correcto, se borran `@cuidat_guest_v1` y `@cuidat_guest_v1.corrupto` (ADR-020). Si el registro falla, no se borra nada.
+> - **Vista multimes:** `CalendarGrid.vue` pasa a ser un solo mes (`monthKey`) y `CalendarPanel.vue` apila hasta tres. Los meses van del más reciente al más antiguo, porque nunca puede haber meses futuros y así el mes activo queda arriba. Los invitados quedan fijos en `1M`. Al cambiar de densidad se carga hasta el mes visible más antiguo.
+> - **Panel derecho:** «Vigilar posible patrón» y «Patrón detectado» siguen mostrando solo el mes activo (el de arriba). El filtro por periodo es un modal aparte, «Ver resúmenes» (`CorrelationFilterModal.vue`), con periodos rápidos (1, 3, 6 y 12 meses), fechas libres, y casillas de síntomas y desencadenantes (los archivados también aparecen). Si el periodo supera los meses cargados, pide al servidor el tramo que falta. Para invitados el periodo queda fijo en el mes actual.
+> - **Ya existían** y solo se comprobaron: la carga inicial de tres meses (punto 6) y la pantalla de gestión del catálogo con «Archivados», «Restaurar» y borrado con recuento (punto 7).
+> - **Límite de 180 líneas:** `ItemManagerModal.vue` tenía 185. Se extrajo `CatalogItemList.vue` (ahora 122). El resto de componentes queda por debajo de 180.
+> - **Cola al eliminar un calendario:** tras un borrado correcto, `deleteCalendar` descarta las operaciones pendientes de ese calendario (`SyncQueue.discardCalendar`), porque el servidor ya borró sus registros en cascada. Así no llegan a la lista de fallidos (ADR-007). Una operación que ya se estaba enviando termina por su cuenta.
+> - **Revisión posterior:** se eliminó la copia obsoleta del proyecto dentro de `tests/`, que se había añadido por error en la Fase 2. `tests/` contiene ahora solo `tests/e2e`. Esa copia hacía que Playwright se cargara dos veces en local y que Snyk (`--all-projects`) analizara dependencias que no se usan. Se añadió `.gitattributes` para fijar los finales de línea en LF, como `.editorconfig`, y se actualizó `dompurify` a 3.4.17 (aviso crítico de `npm audit`).
 
 ## Fase 5: despliegue en Render
 

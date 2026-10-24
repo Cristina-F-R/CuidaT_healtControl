@@ -94,7 +94,21 @@ describe('useAuthStore', () => {
 
     await useAuthStore().register({ email: USER.email, password: 'una contraseña larga' });
 
-    expect(requestBody(fetchMock)).toMatchObject({ guestData: null });
+    expect(requestBody(fetchMock)).toEqual({ email: USER.email, password: 'una contraseña larga' });
+  });
+
+  it('does not send the guest calendar and still removes it when the user declines the migration (ADR-020)', async () => {
+    const guestDocument = { version: 1, profiles: [{ id: 'p' }], items: [], logs: [] };
+    localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(guestDocument));
+    localStorage.setItem(`${GUEST_STORAGE_KEY}.corrupto`, '{roto');
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(201, { user: USER }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await useAuthStore().register({ email: USER.email, password: 'una contraseña larga' }, false);
+
+    expect(requestBody(fetchMock)).toEqual({ email: USER.email, password: 'una contraseña larga' });
+    expect(localStorage.getItem(GUEST_STORAGE_KEY)).toBeNull();
+    expect(localStorage.getItem(`${GUEST_STORAGE_KEY}.corrupto`)).toBeNull();
   });
 
   it('forgets the user on logout and on resetState', async () => {

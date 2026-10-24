@@ -6,6 +6,7 @@ import { useOverlays } from '../../../application/composables/useOverlays';
 import { useItemDefinitionStore } from '../../../application/stores/useItemDefinitionStore';
 import AppModal from '../feedback/AppModal.vue';
 import { FOCUS_RING } from '../../categoryStyles';
+import CatalogItemList from './CatalogItemList.vue';
 import ItemFormPanel from './ItemFormPanel.vue';
 import ItemLifecycleActions from './ItemLifecycleActions.vue';
 
@@ -19,6 +20,9 @@ const view = ref<CatalogView>({ kind: 'list' });
 const backToList = (): void => {
   view.value = { kind: 'list' };
 };
+function openItem(rootId: string): void {
+  view.value = { kind: 'edit', rootId };
+}
 const editingArchived = computed(() => {
   if (view.value.kind !== 'edit') {
     return false;
@@ -42,96 +46,29 @@ const editingArchived = computed(() => {
         Nuevo ítem
       </button>
 
-      <section
-        aria-labelledby="catalog-symptoms"
-        class="flex flex-col gap-2"
-      >
-        <h3
-          id="catalog-symptoms"
-          class="text-sm font-extrabold text-slate-800"
-        >
-          Síntomas
-        </h3>
-        <ul class="flex flex-col gap-1">
-          <li
-            v-for="item in symptoms"
-            :key="item.id"
-            class="flex items-center justify-between gap-2"
-          >
-            <span class="flex min-w-0 items-center gap-2 text-sm text-slate-800"><span aria-hidden="true">{{ item.emoji }}</span><span class="truncate">{{ item.name }}</span></span>
-            <button
-              type="button"
-              :aria-label="`Editar ${item.name}`"
-              class="px-2 py-1 text-xs font-bold text-slate-800 rounded-full hover:bg-tint"
-              :class="FOCUS_RING"
-              @click="view = { kind: 'edit', rootId: item.rootId }"
-            >
-              Editar
-            </button>
-          </li>
-        </ul>
-      </section>
-
-      <section
-        aria-labelledby="catalog-triggers"
-        class="flex flex-col gap-2"
-      >
-        <h3
-          id="catalog-triggers"
-          class="text-sm font-extrabold text-slate-800"
-        >
-          Triggers / Medicación
-        </h3>
-        <ul class="flex flex-col gap-1">
-          <li
-            v-for="item in triggersAndMedication"
-            :key="item.id"
-            class="flex items-center justify-between gap-2"
-          >
-            <span class="flex min-w-0 items-center gap-2 text-sm text-slate-800"><span aria-hidden="true">{{ item.emoji }}</span><span class="truncate">{{ item.name }}</span></span>
-            <button
-              type="button"
-              :aria-label="`Editar ${item.name}`"
-              class="px-2 py-1 text-xs font-bold text-slate-800 rounded-full hover:bg-tint"
-              :class="FOCUS_RING"
-              @click="view = { kind: 'edit', rootId: item.rootId }"
-            >
-              Editar
-            </button>
-          </li>
-        </ul>
-      </section>
-
-      <section
+      <CatalogItemList
+        heading-id="catalog-symptoms"
+        title="Síntomas"
+        :items="symptoms"
+        action-label="Editar"
+        @select="openItem"
+      />
+      <CatalogItemList
+        heading-id="catalog-triggers"
+        title="Triggers / Medicación"
+        :items="triggersAndMedication"
+        action-label="Editar"
+        @select="openItem"
+      />
+      <CatalogItemList
         v-if="archivedItems.length > 0"
-        aria-labelledby="catalog-archived"
-        class="flex flex-col gap-2 p-3 bg-tint rounded-xl"
-      >
-        <h3
-          id="catalog-archived"
-          class="text-sm font-extrabold text-slate-800"
-        >
-          Archivados
-        </h3>
-        <ul class="flex flex-col gap-1">
-          <li
-            v-for="item in archivedItems"
-            :key="item.id"
-            class="flex items-center justify-between gap-2"
-          >
-            <span class="flex min-w-0 items-center gap-2 text-sm text-slate-800"><span aria-hidden="true">{{ item.emoji }}</span><span class="truncate">{{ item.name }}</span></span>
-            <button
-              type="button"
-              :aria-label="`Gestionar ${item.name} archivado`"
-              class="px-2 py-1 text-xs font-bold text-slate-800 rounded-full hover:bg-canvas"
-              :class="FOCUS_RING"
-              @click="view = { kind: 'edit', rootId: item.rootId }"
-            >
-              Gestionar
-            </button>
-          </li>
-        </ul>
-      </section>
+        heading-id="catalog-archived"
+        title="Archivados"
+        :items="archivedItems"
+        action-label="Gestionar"
+        tinted
+        @select="openItem"
+      />
     </template>
 
     <template v-else-if="view.kind === 'create'">

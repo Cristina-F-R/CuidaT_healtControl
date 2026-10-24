@@ -5,6 +5,8 @@ import type { EventLogCreateOverlay, EventLogEditOverlay } from '../../../applic
 import ItemManagerModal from '../catalog/ItemManagerModal.vue';
 import AuthModal from '../auth/AuthModal.vue';
 import DeleteAccountModal from '../auth/DeleteAccountModal.vue';
+import CorrelationFilterModal from '../insights/CorrelationFilterModal.vue';
+import ProfileEditModal from '../profiles/ProfileEditModal.vue';
 import DaySummaryModal from '../logs/DaySummaryModal.vue';
 import EventLogModal from '../logs/EventLogModal.vue';
 
@@ -35,4 +37,10 @@ const daySummaryDayKey = computed<string | null>(() =>
     :initial-mode="topOverlay.mode"
   />
   <DeleteAccountModal v-else-if="topOverlay?.kind === 'deleteAccount'" />
+  <CorrelationFilterModal v-else-if="topOverlay?.kind === 'correlationFilter'" />
+  <ProfileEditModal
+    v-else-if="topOverlay?.kind === 'profileEdit'"
+    :key="topOverlay.profileId ?? 'new'"
+    :profile-id="topOverlay.profileId"
+  />
 </template>

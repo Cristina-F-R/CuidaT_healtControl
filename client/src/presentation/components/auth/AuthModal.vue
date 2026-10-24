@@ -11,7 +11,7 @@ const props = defineProps<{
 }>();
 
 const { closeOverlay } = useOverlays();
-const { mode, email, password, fieldErrors, formError, submitting, passwordHint, switchMode, submit } = useAuthForm(props.initialMode);
+const { mode, email, password, migrateGuestData, fieldErrors, formError, submitting, passwordHint, switchMode, submit } = useAuthForm(props.initialMode);
 
 const hintId = useId();
 const MODES: { value: AuthFormMode; label: string }[] = [
@@ -85,12 +85,24 @@ const INPUT = 'px-2 py-1.5 font-normal text-slate-800 bg-canvas border border-sl
         >{{ fieldErrors.password }}</span>
       </label>
 
-      <p
+      <label
         v-if="mode === 'register'"
-        class="text-sm text-slate-800"
+        class="flex items-start gap-2 text-sm text-slate-800"
       >
-        El calendario guardado en este navegador se copiará a tu nueva cuenta.
-      </p>
+        <input
+          v-model="migrateGuestData"
+          type="checkbox"
+          class="mt-0.5 h-4 w-4 accent-slate"
+          :class="FOCUS_RING"
+        >
+        <span>
+          Conservar y migrar datos locales existentes a mi cuenta
+          <span
+            v-if="!migrateGuestData"
+            class="block text-slate-600"
+          >Los datos de este navegador se eliminarán al crear la cuenta.</span>
+        </span>
+      </label>
 
       <p
         v-if="formError"

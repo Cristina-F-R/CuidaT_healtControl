@@ -120,6 +120,13 @@ describe('createCalendarProfile', () => {
       'INVALID_INPUT',
     );
   });
+
+  it('accepts only the color themes of the palette', () => {
+    expect(createCalendarProfile({ name: 'Luna', profileType: 'Adulto', colorTheme: 'mint' }, 'p', NOW.toISOString()).colorTheme).toBe('mint');
+    expect(ruleCodeOf(() => createCalendarProfile({ name: 'Luna', profileType: 'Adulto', colorTheme: 'red' as 'slate' }, 'p', NOW.toISOString()))).toBe(
+      'INVALID_INPUT',
+    );
+  });
 });
 
 describe('guest limits', () => {

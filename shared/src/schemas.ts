@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { ITEM_EMOJI_MAX_LENGTH, ITEM_NAME_MAX_LENGTH } from './catalog.js';
-import { CORRELATION_WINDOWS, GUEST_MAX_PROFILES, NOTES_MAX_LENGTH } from './constants.js';
+import { CORRELATION_WINDOWS, GUEST_MAX_PROFILES, NOTES_MAX_LENGTH, PROFILE_COLOR_THEMES } from './constants.js';
 import { PROFILE_NAME_MAX_LENGTH, PROFILE_TYPE_MAX_LENGTH } from './profiles.js';
 import type { CorrelationWindowHours } from './types.js';
 
@@ -32,6 +32,8 @@ const correlationWindow = z
     message: 'La ventana de correlación no es válida.',
   });
 
+const colorTheme = z.enum(PROFILE_COLOR_THEMES, { message: 'El color del calendario no es válido.' });
+
 export const emailSchema = z.string().trim().toLowerCase().max(255).pipe(z.email());
 
 export const passwordSchema = z
@@ -50,7 +52,7 @@ export const guestProfileSchema = z.object({
   name: trimmedText(PROFILE_NAME_MAX_LENGTH),
   profileType: trimmedText(PROFILE_TYPE_MAX_LENGTH),
   avatarIcon: trimmedText(50),
-  colorTheme: trimmedText(50),
+  colorTheme,
   correlationWindowHours: correlationWindow,
   createdAt: isoInstant,
 });
@@ -132,7 +134,7 @@ export const profileCreateSchema = z.object({
   name: trimmedText(PROFILE_NAME_MAX_LENGTH),
   profileType: trimmedText(PROFILE_TYPE_MAX_LENGTH),
   avatarIcon: trimmedText(50).optional(),
-  colorTheme: trimmedText(50).optional(),
+  colorTheme: colorTheme.optional(),
   correlationWindowHours: correlationWindow.optional(),
 });
 

@@ -16,6 +16,8 @@ export interface AuthForm {
   mode: Ref<AuthFormMode>;
   email: Ref<string>;
   password: Ref<string>;
+  /** Registration switch: copy the guest calendar to the new account (default on, ADR-020). */
+  migrateGuestData: Ref<boolean>;
   fieldErrors: Ref<AuthFieldErrors>;
   formError: Ref<string>;
   submitting: Ref<boolean>;
@@ -53,6 +55,7 @@ export function useAuthForm(initialMode: AuthFormMode): AuthForm {
   const mode = ref<AuthFormMode>(initialMode);
   const email = ref('');
   const password = ref('');
+  const migrateGuestData = ref(true);
   const fieldErrors = ref<AuthFieldErrors>({});
   const formError = ref('');
   const submitting = ref(false);
@@ -94,7 +97,7 @@ export function useAuthForm(initialMode: AuthFormMode): AuthForm {
     submitting.value = true;
     try {
       if (mode.value === 'register') {
-        await account.register(credentials);
+        await account.register(credentials, migrateGuestData.value);
         showToast('Cuenta creada. Has iniciado sesión.');
       } else {
         await account.signIn(credentials);
@@ -108,5 +111,5 @@ export function useAuthForm(initialMode: AuthFormMode): AuthForm {
     }
   }
 
-  return { mode, email, password, fieldErrors, formError, submitting, passwordHint, switchMode, submit };
+  return { mode, email, password, migrateGuestData, fieldErrors, formError, submitting, passwordHint, switchMode, submit };
 }

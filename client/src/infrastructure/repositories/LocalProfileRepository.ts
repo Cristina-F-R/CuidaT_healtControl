@@ -1,6 +1,7 @@
 import { createCalendarProfile } from '@cuidat/shared';
 import type { CalendarProfile, ProfileDraft } from '@cuidat/shared';
-import type { ProfileRepository } from '../../application/ports/repositories';
+import { DomainRuleError } from '@cuidat/shared';
+import type { ProfilePatch, ProfileRepository } from '../../application/ports/repositories';
 import type { GuestStorage } from './guestStorage';
 
 export class LocalProfileRepository implements ProfileRepository {
@@ -20,6 +21,20 @@ export class LocalProfileRepository implements ProfileRepository {
     document.profiles = [...document.profiles, profile];
     this.guest.write(document);
     return profile;
+  }
+
+  async update(profileId: string, patch: ProfilePatch): Promise<CalendarProfile> {
+    const document = this.guest.read();
+    const current = document.profiles.find((profile) => profile.id === profileId);
+    if (!current) {
+      throw new DomainRuleError('PROFILE_NOT_FOUND', 'El calendario no existe.');
+    }
+    // Same validation as a new profile; undefined fields keep their value.
+    const defined = Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined));
+    const updated = createCalendarProfile({ ...current, ...defined }, current.id, current.createdAt);
+    document.profiles = document.profiles.map((profile) => (profile.id === profileId ? updated : profile));
+    this.guest.write(document);
+    return updated;
   }
 
   async remove(profileId: string): Promise<void> {

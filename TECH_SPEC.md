@@ -33,7 +33,7 @@ CuidaT is a reactive web application designed for visual tracking, deterministic
      - Mode Constraint: In Normal Mode, each row allows editing/deleting. In Consultation Mode (read-only mode for medical visits), editing actions are suppressed.
   6. Calendar Profile Lifecycle Management:
      - Creation: Users can create dedicated profiles with distinct names, a user-defined profile type, avatar emojis, color themes, and custom correlation windows. The type is free text (1-50 chars, sanitized): the UI suggests Mascota, Niño/a and Adulto plus the types the user already created, and typing a new one creates it. It can be edited later like any other profile field. If a registered user has no profile (registration without migrated data), the app shows a "Crea tu primer calendario" onboarding that asks only for name and type (avatar, color and correlation window take defaults and can be edited later); when a guest profile was imported, no onboarding appears. The deletion invariant below prevents going back to zero.
-     - Modification: Existing profiles can be edited via `ProfileEditModal.vue`.
+     - Modification: Existing profiles can be edited via `ProfileEditModal.vue` (name, type, avatar, correlation window). Calendars are listed, switched, edited and created from the calendar menu in the header (`ProfileMenu.vue`); guests only have one, so "Nuevo calendario" shows the locked warning.
      - Deletion: Profiles can be deleted via `DELETE /api/profiles/:id`.
      - Non-Zero Profile Invariant: UI and backend enforce `canDeleteProfile = profiles.length > 1`; the last remaining profile cannot be deleted.
   7. User Profile Lifecycle, Session State & GDPR Data Rights:
@@ -85,7 +85,7 @@ CuidaT is a reactive web application designed for visual tracking, deterministic
 
 ### Quick Jump Navigator & View Density
 - Quick Jump Navigator (`DateNavigatorPopover.vue`): The month label in the header acts as a popover trigger with a year stepper and 12-month grid. Guests: locked (shows the "Opción no disponible sin iniciar sesión." warning). Future months are never selectable.
-- Multi-Month Density Selector: Segmented control (`1M | 2M | 3M`). Allows stacked consecutive months to visualize long-term trends without hiding any event rows. Guests: locked at `1M`.
+- Multi-Month Density Selector: Segmented control (`1M | 2M | 3M`). Allows stacked consecutive months to visualize long-term trends without hiding any event rows. Guests: locked at `1M`. The active month is shown first and the previous ones below it (a future month never exists).
 
 ### Workspace Layout & Interaction (Tailwind default breakpoints)
 - `lg` (>= 1024px): 3-column grid. Left Rail (232px) for Dock, Center Stage (1fr) for CalendarGrid, Right Rail (276px) for Insights and Pattern Thresholds.
@@ -153,7 +153,7 @@ ALLOW_DB_RESET=false
 
 ## 5. Relational Database Schema (PostgreSQL DDL)
 
-Single source: `docs/neon/001_init.sql` (copied to `server/src/db/migrations/001_init.sql`); keep both identical. It was validated against PostgreSQL 16 with `docs/neon/smoke_test.sql`. Identifiers of profiles, items and logs are generated client-side (`crypto.randomUUID()`) so offline writes are idempotent; the guest import remaps ids on the server. Invariants enforced by the schema: lowercase unique email; non-empty free-text `profile_type`, valid `category`, windows, intensity and duration; non-blank notes (max 300); composite foreign keys that prevent cross-calendar references (items, parent, root, logs); one live version per item lineage; lineage rule (original <=> no parent); cascade deletes (user -> profiles -> items/logs; root item -> all its versions and logs).
+Single source: `docs/neon/001_init.sql` (copied to `server/src/db/migrations/001_init.sql`); keep both identical. It was validated against PostgreSQL 16 with `docs/neon/smoke_test.sql`. Identifiers of profiles, items and logs are generated client-side (`crypto.randomUUID()`) so offline writes are idempotent; the guest import remaps ids on the server. Invariants enforced by the schema: lowercase unique email; non-empty free-text `profile_type`, valid `category`, windows, intensity and duration; `color_theme` limited to the palette (`slate`, `peach`, `sky`, `mint`; added by `002_color_theme_check.sql`, the first migration after `001_init`); non-blank notes (max 300); composite foreign keys that prevent cross-calendar references (items, parent, root, logs); one live version per item lineage; lineage rule (original <=> no parent); cascade deletes (user -> profiles -> items/logs; root item -> all its versions and logs).
 
 Rules that a CHECK cannot express are enforced by triggers in the same migration (the server validates them first, these are the last barrier):
 - `check_log_metrics`: a log stores intensity only if its item version tracks intensity, and duration only if it tracks duration.
@@ -175,7 +175,7 @@ CREATE TABLE calendar_profiles (
     name VARCHAR(100) NOT NULL CHECK (length(btrim(name)) > 0),
     profile_type VARCHAR(50) NOT NULL CHECK (length(btrim(profile_type)) > 0), -- texto libre definido por el usuario
     avatar_icon VARCHAR(50) NOT NULL DEFAULT '👤',
-    color_theme VARCHAR(50) NOT NULL DEFAULT 'slate',
+    color_theme VARCHAR(50) NOT NULL DEFAULT 'slate', -- CHECK de la paleta en 002_color_theme_check.sql
     correlation_window_hours SMALLINT NOT NULL DEFAULT 48
         CHECK (correlation_window_hours IN (2, 6, 12, 24, 36, 48)),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

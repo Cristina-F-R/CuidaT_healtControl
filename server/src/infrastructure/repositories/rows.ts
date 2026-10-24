@@ -1,5 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
-import type { CalendarProfile, CorrelationWindowHours, HealthEventLog, HealthItemDefinition, Intensity, ItemCategory, ItemStatus } from '@cuidat/shared';
+import type { CalendarProfile, CorrelationWindowHours, HealthEventLog, HealthItemDefinition, Intensity, ItemCategory, ItemStatus, ProfileColorTheme } from '@cuidat/shared';
 
 // Row <-> entity mapping for the data repositories. Columns are snake_case, entities camelCase.
 
@@ -52,7 +52,7 @@ export function toProfile(row: ProfileRow): CalendarProfile {
     name: row.name,
     profileType: row.profile_type,
     avatarIcon: row.avatar_icon,
-    colorTheme: row.color_theme,
+    colorTheme: row.color_theme as ProfileColorTheme,
     correlationWindowHours: row.correlation_window_hours as CorrelationWindowHours,
     createdAt: row.created_at.toISOString(),
   };

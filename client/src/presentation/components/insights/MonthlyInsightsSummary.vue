@@ -3,11 +3,13 @@ import { PATTERN_DETECTED_MIN_OCCURRENCES, PATTERN_WATCH_MIN_OCCURRENCES } from 
 import type { ItemCategory } from '@cuidat/shared';
 import { storeToRefs } from 'pinia';
 import { computed } from 'vue';
+import { useOverlays } from '../../../application/composables/useOverlays';
 import { useCalendar } from '../../../application/composables/useCalendar';
 import { usePatterns } from '../../../application/composables/usePatterns';
 import { useEventStore } from '../../../application/stores/useEventStore';
 import { useItemDefinitionStore } from '../../../application/stores/useItemDefinitionStore';
 import { useProfileStore } from '../../../application/stores/useProfileStore';
+import { FOCUS_RING } from '../../categoryStyles';
 import PatternSection from './PatternSection.vue';
 
 const { activeMonthKey, monthName } = useCalendar();
@@ -15,6 +17,7 @@ const { logsByDay } = storeToRefs(useEventStore());
 const itemStore = useItemDefinitionStore();
 const { activeProfile } = storeToRefs(useProfileStore());
 const { watchPatterns, detectedPatterns } = usePatterns();
+const { openOverlay } = useOverlays();
 
 const totals = computed(() => {
   const counts: Record<ItemCategory, number> = { symptom: 0, trigger: 0, medication: 0 };
@@ -88,6 +91,14 @@ const DETECTED_THRESHOLD = `${PATTERN_DETECTED_MIN_OCCURRENCES} o más coinciden
       surface="bg-mint/40"
       :patterns="detectedPatterns"
     />
+    <button
+      type="button"
+      class="self-start px-4 py-2 text-sm font-bold text-canvas bg-slate rounded-full transition-colors hover:bg-slate-700"
+      :class="FOCUS_RING"
+      @click="openOverlay({ kind: 'correlationFilter' })"
+    >
+      Ver resúmenes
+    </button>
     <p class="text-xs text-slate">
       Una coincidencia no confirma una causa. Puede ser útil comentarla con un profesional.
     </p>

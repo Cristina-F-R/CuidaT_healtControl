@@ -1,5 +1,6 @@
 import { DomainRuleError, GUEST_LOCKED_WARNING, isGuestProfileLimitReached } from '@cuidat/shared';
 import type { CalendarProfile, ProfileDraft } from '@cuidat/shared';
+import type { ProfilePatch } from '../ports/repositories';
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { sanitizeText } from '../sanitizeText';
@@ -19,6 +20,9 @@ export const useProfileStore = defineStore('profiles', () => {
     }
     return profile;
   });
+
+  /** Types the user already uses, for the type combobox. */
+  const profileTypes = computed(() => [...new Set(profiles.value.map((profile) => profile.profileType))]);
 
   /** Non-zero profile invariant (TECH_SPEC.md ADR-003). */
   const canDeleteProfile = computed(() => profiles.value.length > 1);
@@ -44,6 +48,17 @@ export const useProfileStore = defineStore('profiles', () => {
     return profile;
   }
 
+  async function updateProfile(profileId: string, patch: ProfilePatch): Promise<CalendarProfile> {
+    const clean: ProfilePatch = {
+      ...patch,
+      name: patch.name === undefined ? undefined : sanitizeText(patch.name),
+      profileType: patch.profileType === undefined ? undefined : sanitizeText(patch.profileType),
+    };
+    const updated = await currentRepositories().profiles.update(profileId, clean);
+    profiles.value = profiles.value.map((profile) => (profile.id === profileId ? updated : profile));
+    return updated;
+  }
+
   async function deleteProfile(profileId: string): Promise<void> {
     if (!canDeleteProfile.value) {
       throw new DomainRuleError('PROFILE_LAST', 'No se puede eliminar el último calendario.');
@@ -62,8 +77,10 @@ export const useProfileStore = defineStore('profiles', () => {
     activeProfileId,
     activeProfile,
     canDeleteProfile,
+    profileTypes,
     loadProfiles,
     createProfile,
+    updateProfile,
     deleteProfile,
     resetState,
   };

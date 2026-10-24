@@ -40,10 +40,12 @@ export const useAuthStore = defineStore('auth', () => {
 
   /**
    * Creates the account and imports the guest calendar in the same transaction. Once the server has
-   * it, the browser copy is removed (ADR-020). The opt-out switch arrives in Phase 4.
+   * it, the browser copy is removed (ADR-020), also when the user chose not to migrate it: then
+   * `guestData` is not sent and the local data is dropped (GDPR Art. 9 explicit consent).
    */
-  async function register(credentials: LoginBody): Promise<void> {
-    const created = await gateway.register({ ...credentials, guestData: readGuestDataForImport() });
+  async function register(credentials: LoginBody, migrateGuestData = true): Promise<void> {
+    const guestData = migrateGuestData ? readGuestDataForImport() : null;
+    const created = await gateway.register(guestData ? { ...credentials, guestData } : credentials);
     clearGuestStorage();
     setUser(created);
   }
