@@ -6,7 +6,8 @@ import type { ComputedRef } from 'vue';
 import { useEventStore } from '../stores/useEventStore';
 import { useItemDefinitionStore } from '../stores/useItemDefinitionStore';
 import { useProfileStore } from '../stores/useProfileStore';
-import { useCalendar } from './useCalendar';
+import { DAY_KEY_FORMAT, useCalendar } from './useCalendar';
+import { useViewMode } from './useViewMode';
 
 const MS_PER_HOUR = 3_600_000;
 
@@ -16,7 +17,12 @@ export interface PatternView {
   symptomLabel: string;
   occurrences: number;
   category: PatternCategory;
+  /** Symptom logs that make up the pattern (consultation day marks). */
+  symptomEventIds: string[];
 }
+
+/** Mark of a calendar day in consultation mode (TECH_SPEC.md use case 12). */
+export type DayMark = 'watch' | 'detected';
 
 /** What to correlate: symptoms inside [from, to] (epoch ms), optionally limited to some lineages. */
 export interface PatternQuery {
@@ -74,6 +80,7 @@ export function collectPatterns(query: PatternQuery): PatternView[] {
     symptomLabel: labelOf(pattern.symptomRootId),
     occurrences: pattern.occurrences,
     category: pattern.category,
+    symptomEventIds: pattern.symptomEventIds,
   }));
 }
 
@@ -85,6 +92,52 @@ export function splitByCategory(patterns: readonly PatternView[]): { watch: Patt
   };
 }
 
+/** One month: its symptoms and, through the window, the triggers logged just before it. */
+export function monthPatternQuery(monthKey: string, windowHours: CorrelationWindowHours): PatternQuery {
+  const monthStart = dayjs(`${monthKey}-01`);
+  return { from: monthStart.valueOf(), to: monthStart.endOf('month').valueOf(), windowHours };
+}
+
+/**
+ * Days to mark in consultation mode: the local days of the symptoms that make up a reported pattern.
+ * "Patrón detectado" wins over "Vigilar posible patrón" on the same day.
+ */
+export function markPatternDays(
+  patterns: readonly PatternView[],
+  dayOfEvent: (eventId: string) => string | undefined,
+): Map<string, DayMark> {
+  const marks = new Map<string, DayMark>();
+  for (const pattern of patterns) {
+    const mark: DayMark = pattern.category === 'Patrón detectado' ? 'detected' : 'watch';
+    for (const eventId of pattern.symptomEventIds) {
+      const dayKey = dayOfEvent(eventId);
+      if (dayKey && marks.get(dayKey) !== 'detected') {
+        marks.set(dayKey, mark);
+      }
+    }
+  }
+  return marks;
+}
+
+/**
+ * Day marks of one visible month, with the same query as the insights panel (each month on its own).
+ * Empty outside consultation mode, so nothing is computed then.
+ */
+export function usePatternDayMarks(monthKey: () => string): ComputedRef<Map<string, DayMark>> {
+  const eventStore = useEventStore();
+  const profileStore = useProfileStore();
+  const { consultationMode } = useViewMode();
+
+  return computed(() => {
+    if (!consultationMode.value) {
+      return new Map<string, DayMark>();
+    }
+    const patterns = collectPatterns(monthPatternQuery(monthKey(), profileStore.activeProfile.correlationWindowHours));
+    const dayById = new Map(eventStore.logs.map((log) => [log.id, dayjs(log.loggedAt).format(DAY_KEY_FORMAT)]));
+    return markPatternDays(patterns, (eventId) => dayById.get(eventId));
+  });
+}
+
 /** Correlations of the visible month, shown in the insights panel. */
 export function usePatterns(): {
   watchPatterns: ComputedRef<PatternView[]>;
@@ -93,14 +146,9 @@ export function usePatterns(): {
   const { activeMonthKey } = useCalendar();
   const profileStore = useProfileStore();
 
-  const patterns = computed(() => {
-    const monthStart = dayjs(`${activeMonthKey.value}-01`);
-    return collectPatterns({
-      from: monthStart.valueOf(),
-      to: monthStart.endOf('month').valueOf(),
-      windowHours: profileStore.activeProfile.correlationWindowHours,
-    });
-  });
+  const patterns = computed(() =>
+    collectPatterns(monthPatternQuery(activeMonthKey.value, profileStore.activeProfile.correlationWindowHours)),
+  );
   const split = computed(() => splitByCategory(patterns.value));
 
   return {

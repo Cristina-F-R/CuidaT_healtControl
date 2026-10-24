@@ -76,6 +76,8 @@ export function detectCorrelations(
         symptomRootId: pair.symptomRootId,
         occurrences,
         category,
+        // Symptoms are visited in stable order, so the set keeps that order.
+        symptomEventIds: [...pair.symptomEventIds],
       });
     }
   }

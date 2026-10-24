@@ -119,18 +119,16 @@ const DATE_INPUT = 'px-2 py-1.5 font-normal text-slate-800 bg-canvas border bord
     >
       <PatternSection
         heading-id="filter-watch"
-        title="Vigilar posible patrón"
+        tone="watch"
         :threshold="WATCH_THRESHOLD"
         empty-text="No hay coincidencias suficientes con este filtro."
-        surface="bg-tint"
         :patterns="filter.watchPatterns.value"
       />
       <PatternSection
         heading-id="filter-detected"
-        title="Patrón detectado"
+        tone="detected"
         :threshold="DETECTED_THRESHOLD"
         empty-text="Ningún patrón detectado con este filtro."
-        surface="bg-mint/40"
         :patterns="filter.detectedPatterns.value"
       />
     </div>

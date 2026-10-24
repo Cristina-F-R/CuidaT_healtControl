@@ -4,6 +4,7 @@ import { loadWorkspace, useMonthLoader, useNeedsOnboarding, useWorkspaceLoadErro
 import { useSyncStore } from './application/stores/useSyncStore';
 import { useAuthStore } from './application/stores/useAuthStore';
 import { useErrorBoundary } from './application/composables/useErrorBoundary';
+import { useViewMode } from './application/composables/useViewMode';
 import CalendarPanel from './presentation/components/calendar/CalendarPanel.vue';
 import SidebarDock from './presentation/components/dock/SidebarDock.vue';
 import AppToaster from './presentation/components/feedback/AppToaster.vue';
@@ -19,6 +20,7 @@ const { criticalError } = useErrorBoundary();
 const ready = useWorkspaceReady();
 const loadError = useWorkspaceLoadError();
 const needsOnboarding = useNeedsOnboarding();
+const { consultationMode } = useViewMode();
 useMonthLoader();
 
 // Errors thrown here reach app.config.errorHandler, which shows FallbackError.vue (ADR-009).
@@ -45,9 +47,13 @@ onBeforeUnmount(() => useSyncStore().stop());
       class="mx-auto max-w-[1440px] px-4 pb-24 lg:px-8"
     >
       <FilterBar />
-      <!-- 3 columns from lg (1024px): dock 232px, calendar, insights 276px. Single column below. -->
-      <div class="grid gap-4 lg:grid-cols-[232px_minmax(0,1fr)_276px] lg:items-start lg:gap-6">
-        <SidebarDock />
+      <!-- 3 columns from lg (1024px): dock 232px, calendar, insights 276px. Single column below.
+           Consultation mode drops the dock and the calendar takes its space (TECH_SPEC.md use case 12). -->
+      <div
+        class="grid gap-4 lg:items-start lg:gap-6"
+        :class="consultationMode ? 'lg:grid-cols-[minmax(0,1fr)_276px]' : 'lg:grid-cols-[232px_minmax(0,1fr)_276px]'"
+      >
+        <SidebarDock v-if="!consultationMode" />
         <CalendarPanel />
         <MonthlyInsightsSummary />
       </div>

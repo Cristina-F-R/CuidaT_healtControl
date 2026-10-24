@@ -196,7 +196,8 @@ describe('App (Phase 4: calendars, navigation and analytics)', () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(app.text()).toContain('Historial de Rex');
     expect(app.text()).toContain('Rex · Mascota');
-    expect(buttonNamed(document.body, 'Calendarios').querySelector('.bg-mint')).not.toBeNull();
+    // The color theme is the calendar's identity: it tints the calendar menu.
+    expect(buttonNamed(document.body, 'Calendarios').classList).toContain('bg-mint');
   });
 
   it('refuses a second calendar for guests and opens the creation form for accounts', async () => {

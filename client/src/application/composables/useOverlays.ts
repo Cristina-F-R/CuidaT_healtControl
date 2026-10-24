@@ -19,6 +19,8 @@ export interface EventLogEditOverlay {
 export type Overlay =
   | EventLogCreateOverlay
   | EventLogEditOverlay
+  /** Consultation mode: a log without editing actions (TECH_SPEC.md use case 12). */
+  | { kind: 'eventDetail'; logId: string }
   | { kind: 'daySummary'; dayKey: string }
   | { kind: 'itemManager' }
   /** `profileId: null` creates a calendar. */

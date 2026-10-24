@@ -8,6 +8,7 @@ import DeleteAccountModal from '../auth/DeleteAccountModal.vue';
 import CorrelationFilterModal from '../insights/CorrelationFilterModal.vue';
 import ProfileEditModal from '../profiles/ProfileEditModal.vue';
 import DaySummaryModal from '../logs/DaySummaryModal.vue';
+import EventDetailModal from '../logs/EventDetailModal.vue';
 import EventLogModal from '../logs/EventLogModal.vue';
 
 // Renders the topmost overlay of the stack (see useOverlays).
@@ -26,6 +27,11 @@ const daySummaryDayKey = computed<string | null>(() =>
     v-if="eventLog"
     :key="`${eventLog.mode}-${eventLog.mode === 'create' ? eventLog.itemId + eventLog.dayKey : eventLog.logId}`"
     :request="eventLog"
+  />
+  <EventDetailModal
+    v-else-if="topOverlay?.kind === 'eventDetail'"
+    :key="topOverlay.logId"
+    :log-id="topOverlay.logId"
   />
   <DaySummaryModal
     v-else-if="daySummaryDayKey"

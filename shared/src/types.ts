@@ -69,8 +69,11 @@ export interface HealthEvent {
 export interface PatternThreshold {
   triggerRootId: string;
   symptomRootId: string;
+  /** Always `symptomEventIds.length`. */
   occurrences: number;
   category: PatternCategory;
+  /** Symptom events counted as occurrences, in the stable event order (consultation day marks). */
+  symptomEventIds: string[];
 }
 
 export type ItemPreset = Pick<HealthItemDefinition, 'name' | 'emoji' | 'category' | 'trackIntensity' | 'trackDuration'>;

@@ -5,7 +5,9 @@ import { useDayEntries } from '../../../application/composables/useDayEntries';
 import type { DayEntry } from '../../../application/composables/useDayEntries';
 import { useInteraction } from '../../../application/composables/useInteraction';
 import { useOverlays } from '../../../application/composables/useOverlays';
+import { usePatternDayMarks } from '../../../application/composables/usePatterns';
 import { usePlacement } from '../../../application/composables/usePlacement';
+import { useViewMode } from '../../../application/composables/useViewMode';
 import CalendarDayCell from './CalendarDayCell.vue';
 
 const WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] as const;
@@ -22,6 +24,9 @@ const { entriesByDay } = useDayEntries();
 const { draggingItemId, isDragging, endDrag } = useInteraction();
 const { placeItem, activateDay } = usePlacement();
 const { openOverlay } = useOverlays();
+const { consultationMode } = useViewMode();
+// Consultation mode only (empty otherwise): this month's pattern days (TECH_SPEC.md use case 12).
+const dayMarks = usePatternDayMarks(() => props.monthKey);
 
 function onDropItem(dayKey: string): void {
   if (draggingItemId.value) {
@@ -30,9 +35,10 @@ function onDropItem(dayKey: string): void {
   endDrag();
 }
 
-/** Clicking a dot edits that log in place (TECH_SPEC.md use case 1). */
+/** Clicking a dot edits that log in place (TECH_SPEC.md use case 1); consultation mode only shows it. */
 function onOpenEvent(entry: DayEntry): void {
-  openOverlay({ kind: 'eventLog', mode: 'edit', logId: entry.log.id });
+  const logId = entry.log.id;
+  openOverlay(consultationMode.value ? { kind: 'eventDetail', logId } : { kind: 'eventLog', mode: 'edit', logId });
 }
 </script>
 
@@ -65,6 +71,7 @@ function onOpenEvent(entry: DayEntry): void {
           :day-key="slot"
           :entries="entriesByDay.get(slot) ?? []"
           :is-dragging="isDragging"
+          :mark="dayMarks.get(slot)"
           @activate="activateDay"
           @drop-item="onDropItem"
           @open-event="onOpenEvent"

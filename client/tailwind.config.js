@@ -22,6 +22,8 @@ export default {
         950: '#172029',
       },
       peach: '#FFDBBB',
+      // "Vigilar posible patrón" only (TECH_SPEC.md section 2), never an item category.
+      sun: '#FFF3BA',
       sky: '#BADDFF',
       mint: '#BAFFF5',
       tint: '#E6F4FE',

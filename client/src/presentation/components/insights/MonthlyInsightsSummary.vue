@@ -77,18 +77,16 @@ const DETECTED_THRESHOLD = `${PATTERN_DETECTED_MIN_OCCURRENCES} o más coinciden
     </dl>
     <PatternSection
       heading-id="pattern-watch"
-      title="Vigilar posible patrón"
+      tone="watch"
       :threshold="WATCH_THRESHOLD"
       empty-text="Todavía no hay coincidencias suficientes."
-      surface="bg-tint"
       :patterns="watchPatterns"
     />
     <PatternSection
       heading-id="pattern-detected"
-      title="Patrón detectado"
+      tone="detected"
       :threshold="DETECTED_THRESHOLD"
       empty-text="Ningún patrón detectado todavía."
-      surface="bg-mint/40"
       :patterns="detectedPatterns"
     />
     <button

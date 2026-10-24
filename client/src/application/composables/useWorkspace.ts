@@ -12,6 +12,7 @@ import { useCalendar } from './useCalendar';
 import { useInteraction } from './useInteraction';
 import { resetMonthDensity, useMultiMonth } from './useMultiMonth';
 import { useToast } from './useToast';
+import { resetViewMode } from './useViewMode';
 
 // The workspace needs an active profile to render, so App.vue waits for `ready` (also on reloads).
 const useWorkspaceStore = defineStore('workspace', () => ({
@@ -128,6 +129,7 @@ export async function reloadWorkspace(): Promise<void> {
     useCalendar().goToday();
   }
   resetMonthDensity();
+  resetViewMode();
   await loadWorkspace();
 }
 

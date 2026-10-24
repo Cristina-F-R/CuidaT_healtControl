@@ -5,6 +5,7 @@ import { useDisclosure } from '../../../application/composables/useDisclosure';
 import { useGuestLimits } from '../../../application/composables/useGuestLimits';
 import { useOverlays } from '../../../application/composables/useOverlays';
 import { useToast } from '../../../application/composables/useToast';
+import { useViewMode } from '../../../application/composables/useViewMode';
 import { switchCalendar } from '../../../application/composables/useWorkspace';
 import { userMessageOf } from '../../../application/errors';
 import { useProfileStore } from '../../../application/stores/useProfileStore';
@@ -15,6 +16,8 @@ const { profiles, activeProfile } = storeToRefs(profileStore);
 const { openOverlay } = useOverlays();
 const { isGuest, showLockedNotice } = useGuestLimits();
 const { showToast } = useToast();
+// Consultation mode keeps calendar switching but hides editing (TECH_SPEC.md use case 12).
+const { consultationMode } = useViewMode();
 const disclosure = useDisclosure();
 const { open, panelId, close } = disclosure;
 
@@ -58,13 +61,13 @@ const AVATAR = 'grid h-6 w-6 shrink-0 place-items-center rounded-full';
       :aria-expanded="open"
       :aria-controls="panelId"
       aria-label="Calendarios"
-      class="flex max-w-full items-center gap-2 px-3 py-1 text-sm font-bold text-slate-800 bg-tint rounded-full hover:bg-slate-100"
-      :class="FOCUS_RING"
+      class="flex max-w-full items-center gap-2 px-3 py-1 text-sm font-bold text-slate-800 rounded-full transition-shadow hover:shadow-md"
+      :class="[FOCUS_RING, PROFILE_THEME[activeProfile.colorTheme].surface]"
       @click="open = !open"
     >
       <span
         aria-hidden="true"
-        :class="[AVATAR, PROFILE_THEME[activeProfile.colorTheme].surface]"
+        :class="[AVATAR, 'bg-canvas']"
       >{{ activeProfile.avatarIcon }}</span>
       <span class="truncate">{{ activeProfile.name }} · {{ activeProfile.profileType }}</span>
       <ChevronDown
@@ -75,7 +78,7 @@ const AVATAR = 'grid h-6 w-6 shrink-0 place-items-center rounded-full';
     <div
       v-show="open"
       :id="panelId"
-      class="absolute left-0 z-30 mt-2 w-72 p-1.5 bg-canvas border border-slate-200 rounded-2xl shadow-xl"
+      class="absolute left-1/2 z-30 mt-2 w-72 max-w-[calc(100vw-2rem)] -translate-x-1/2 p-1.5 bg-canvas border border-slate-200 rounded-2xl shadow-xl"
     >
       <ul
         aria-label="Tus calendarios"
@@ -100,6 +103,7 @@ const AVATAR = 'grid h-6 w-6 shrink-0 place-items-center rounded-full';
         </li>
       </ul>
       <button
+        v-if="!consultationMode"
         type="button"
         :class="[ITEM, FOCUS_RING]"
         @click="onEdit"
@@ -111,6 +115,7 @@ const AVATAR = 'grid h-6 w-6 shrink-0 place-items-center rounded-full';
         Editar calendario
       </button>
       <button
+        v-if="!consultationMode"
         type="button"
         :class="[ITEM, FOCUS_RING]"
         @click="onCreate"
