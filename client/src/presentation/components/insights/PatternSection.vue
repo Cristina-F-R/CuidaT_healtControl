@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import type { PatternView } from '../../../application/composables/usePatterns';
+import type { DayMark, PatternView } from '../../../application/composables/usePatterns';
+import { PATTERN_STYLE } from '../../categoryStyles';
 
+// Same color and icon as the consultation day marks: `sun` to watch, `peach` detected (TECH_SPEC.md section 2).
 defineProps<{
   headingId: string;
-  title: string;
+  tone: DayMark;
   threshold: string;
   emptyText: string;
-  surface: 'bg-tint' | 'bg-mint/40';
   patterns: PatternView[];
 }>();
 </script>
@@ -14,34 +15,47 @@ defineProps<{
 <template>
   <section
     :aria-labelledby="headingId"
-    class="flex flex-col gap-1 p-4 rounded-xl"
-    :class="surface"
+    class="flex flex-col gap-2"
   >
     <h3
       :id="headingId"
-      class="text-sm font-extrabold text-slate-800"
+      class="flex items-center gap-2 text-sm font-extrabold text-slate-800"
     >
-      {{ title }}
+      <span
+        aria-hidden="true"
+        class="grid h-6 w-6 place-items-center rounded-full"
+        :class="PATTERN_STYLE[tone].surface"
+      >
+        <component
+          :is="PATTERN_STYLE[tone].icon"
+          :size="14"
+        />
+      </span>
+      {{ PATTERN_STYLE[tone].label }}
     </h3>
-    <p class="text-xs font-bold text-slate-800">
+    <p class="text-xs font-bold text-slate">
       {{ threshold }}
     </p>
     <ul
       v-if="patterns.length > 0"
-      class="mt-1 flex flex-col gap-2"
+      class="flex flex-col gap-2"
     >
       <li
         v-for="pattern in patterns"
         :key="pattern.key"
-        class="text-sm text-slate-800"
+        class="flex items-center justify-between gap-3 p-3 text-sm text-slate-800 rounded-xl"
+        :class="PATTERN_STYLE[tone].surface"
       >
-        {{ pattern.triggerLabel }} → {{ pattern.symptomLabel }}
-        <span class="text-xs font-bold">· {{ pattern.occurrences }} coincidencias</span>
+        <span class="min-w-0 font-bold">{{ pattern.triggerLabel }} → {{ pattern.symptomLabel }}</span>
+        <span class="flex shrink-0 flex-col items-end leading-none">
+          <span class="text-xl font-extrabold">{{ pattern.occurrences }}</span>
+          <span class="text-xs font-bold">coincidencias</span>
+        </span>
       </li>
     </ul>
     <p
       v-else
-      class="mt-1 text-sm text-slate-800"
+      class="p-3 text-sm text-slate-800 bg-tint rounded-xl"
     >
       {{ emptyText }}
     </p>

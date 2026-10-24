@@ -102,10 +102,11 @@ Every `.vue` component must strictly observe the following block sequence:
 
 - Tailwind CSS 3.4 with tokens extended in `tailwind.config.js`. Arbitrary hex values are banned in component templates; default palette colors (`white`, `red-*`, ...) are not used either. Allowed tokens:
   - `slate` full scale (`slate-50` ... `slate-950`, DEFAULT = 600): structural text, icons, borders, buttons.
-  - `peach` (symptoms, warnings, severity indicators), `sky` (medication, informational cards and secondary panels), `mint` (triggers, confirmations, correlation badges).
+  - `peach` (symptoms, warnings, severity indicators, "Patrón detectado"), `sky` (medication, informational cards and secondary panels), `mint` (triggers, confirmations, correlation badges).
+  - `sun` (`#FFF3BA`): "Vigilar posible patrón" only (insights cards and consultation day marks). Never used for item categories.
   - `tint` (soft background surfaces, pill containers), `canvas` (clean canvas, cell backgrounds and any "white" surface).
   - `danger` / `danger-dark` (destructive actions only).
-- Contrast: text on `peach`, `sky` or `mint` badges uses `text-slate-800`; `text-slate` is only for `canvas`, `tint`, `mint`, `peach` and `slate-50/100` backgrounds (WCAG AA, see `TECH_SPEC.md`).
+- Contrast: text on `peach`, `sun`, `sky` or `mint` badges uses `text-slate-800`; `text-slate` is only for `canvas`, `tint`, `mint`, `peach`, `sun` and `slate-50/100` backgrounds (WCAG AA, see `TECH_SPEC.md`). Soft tokens used as borders or bands on `canvas` are below 3:1, so they must always come with an icon and accessible text (never color alone).
 - Font: `font-sans` = Nunito Sans Variable, self-hosted via `@fontsource-variable/nunito-sans` imported in `main.ts`. No Google Fonts links.
 - Class Ordering Protocol:
   1. Box Model & Positioning (`grid`, `flex`, `relative`, `w-full`)
@@ -133,8 +134,16 @@ Every `.vue` component must strictly observe the following block sequence:
   - Drag & Drop uses the native HTML5 API (`draggable`, `dragstart`, `dragover`, `drop`), no library, and is enabled only when `matchMedia('(hover: hover) and (pointer: fine)')` matches.
   - Active Dropzone: When a user starts dragging an item from the dock, the calendar cells corresponding to valid days (present and past) must visually highlight (e.g., `bg-tint/30 border-dashed border-mint`).
   - Blocked Dropzone: Future days must maintain their inactive state (`bg-slate-50 opacity-50`) and must not react to hover events during the drag, reinforcing the date restriction.
+- Consultation Mode (`useViewMode.ts`, `TECH_SPEC.md` use case 12):
+  - Switch: in `FilterBar.vue`, right-aligned on the same row as the filter pills (`flex flex-wrap justify-between`). `<button role="switch" :aria-checked>` with a track `relative h-5 w-9 rounded-full` (`bg-slate-300` off, `bg-slate-700` on) and a `bg-canvas` knob, plus the visible label "Modo consulta". Starts off on every load.
+  - Layout: `SidebarDock` is not rendered; from `lg` the grid becomes `lg:grid-cols-[minmax(0,1fr)_276px]`.
+  - No editing affordance is rendered (save, delete, archive, create, edit calendar, delete account); read-only views keep all the information.
+  - Pattern day mark: keep `bg-canvas`; add `border-2` plus a 6px top band (`border-sun` / `bg-sun` for watch, `border-peach` / `bg-peach` for detected) and an icon badge (`Eye` or `TriangleAlert`, `text-slate-800` on the same token) placed in flow next to the day number, so in narrow cells it wraps below the number instead of covering it. The day button's `aria-label` ends with "· Vigilar posible patrón" or "· Patrón detectado". A legend above the calendar shows both marks.
+  - Toggling is announced with `aria-live="polite"`.
 
 ### Session, Onboarding & Identity Component Specifications
+- Header Layout (`AppHeader.vue`): from `md`, `grid grid-cols-[1fr_auto_1fr] items-center`: logo left, `ProfileMenu` centered, sync badge and account right (`justify-self-end`). Below `md`, two rows: logo with badge and account, then `ProfileMenu` centered.
+- Insights Pattern Cards (`PatternSection.vue`): "Vigilar posible patrón" cards `bg-sun text-slate-800` with `Eye`; "Patrón detectado" cards `bg-peach text-slate-800` with `TriangleAlert`; occurrence count in `font-extrabold`. Same marks as the consultation calendar.
 - Header Connectivity & Session Badges (`AppHeader.vue`):
   - Guest Mode: Neutral badge using `bg-slate-100 text-slate-600 border border-slate-200` with text "Modo Local".
   - Authenticated, in sync: `bg-mint/40 text-slate-800 border border-mint` with text "Sincronizado".
@@ -142,6 +151,7 @@ Every `.vue` component must strictly observe the following block sequence:
   - Authenticated, offline: `bg-slate-100 text-slate-600 border border-slate-200` with text "Sin conexión".
 - Profile Lifecycle Modals (`ProfileEditModal.vue`):
   - Provide inline editing for profile name, profile type (combobox: suggestions Mascota / Niño/a / Adulto plus the user's own types, free typing creates a new one, sanitized, 1-50 chars), avatar emoji selector, color theme pills and correlation window.
+  - Color theme (`ProfileColorField.vue`): `PROFILE_COLOR_THEMES` pills (`aria-pressed`) with the hint "Te ayuda a reconocer el calendario de un vistazo." The theme tints the `ProfileMenu` avatar and button and a 4px top band of `CalendarPanel.vue`; it carries no clinical meaning.
   - Empty registered profile: dock empty state with the "Añadir ítems de ejemplo" action.
   - Delete action button must be disabled with tooltip when `!canDeleteProfile`.
 - Guest Gating: guests may hold at most 3 symptoms and 3 triggers/medication (`GUEST_MAX_SYMPTOMS`, `GUEST_MAX_TRIGGERS`; the 6 preset items fill them; archived items still count). Creating one more shows the same Toast/`AuthModal` action as locked navigation. Limits are defined in `shared/src/guestLimits.ts` and exposed to the UI by `useGuestLimits.ts`.

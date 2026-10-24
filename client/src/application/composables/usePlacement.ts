@@ -4,6 +4,7 @@ import { useItemDefinitionStore } from '../stores/useItemDefinitionStore';
 import { useInteraction } from './useInteraction';
 import { useOverlays } from './useOverlays';
 import { useToast } from './useToast';
+import { useViewMode } from './useViewMode';
 
 /**
  * Places the selected dock item on a day (select-then-place or drag and drop).
@@ -17,10 +18,12 @@ export function usePlacement(): {
   const { selectedItemId } = useInteraction();
   const { showToast } = useToast();
   const { openOverlay } = useOverlays();
+  const { consultationMode } = useViewMode();
 
   function placeItem(itemId: string, dayKey: string): void {
     const item = itemStore.findById(itemId);
-    if (!item || item.status !== 'active') {
+    // Consultation mode is read-only (TECH_SPEC.md use case 12).
+    if (!item || item.status !== 'active' || consultationMode.value) {
       return;
     }
     if (dayjs(dayKey).isAfter(dayjs(), 'day')) {
@@ -32,7 +35,7 @@ export function usePlacement(): {
 
   /** Day button: places the selected item, or opens the day summary when nothing is selected. */
   function activateDay(dayKey: string): void {
-    if (selectedItemId.value) {
+    if (selectedItemId.value && !consultationMode.value) {
       placeItem(selectedItemId.value, dayKey);
       return;
     }

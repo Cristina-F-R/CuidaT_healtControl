@@ -33,5 +33,6 @@ const emit = defineEmits<{
         {{ PROFILE_THEME[theme].label }}
       </button>
     </div>
+    <span class="font-normal text-slate-600">Te ayuda a reconocer el calendario de un vistazo.</span>
   </div>
 </template>

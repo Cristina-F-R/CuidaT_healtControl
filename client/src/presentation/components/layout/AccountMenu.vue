@@ -4,6 +4,7 @@ import { onBeforeUnmount, onMounted, ref, useId } from 'vue';
 import { useAccount } from '../../../application/composables/useAccount';
 import { useOverlays } from '../../../application/composables/useOverlays';
 import { useToast } from '../../../application/composables/useToast';
+import { useViewMode } from '../../../application/composables/useViewMode';
 import { userMessageOf } from '../../../application/errors';
 import { FOCUS_RING } from '../../categoryStyles';
 
@@ -14,6 +15,8 @@ defineProps<{
 const { downloadMyData, signOut } = useAccount();
 const { openOverlay } = useOverlays();
 const { showToast } = useToast();
+// Consultation mode hides the destructive action (TECH_SPEC.md use case 12).
+const { consultationMode } = useViewMode();
 
 // Disclosure pattern: a button that shows a list of actions; Esc and a click outside close it.
 const open = ref(false);
@@ -111,7 +114,7 @@ const ITEM = 'flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-bo
           Descargar mis datos (JSON)
         </button>
       </li>
-      <li>
+      <li v-if="!consultationMode">
         <button
           type="button"
           :class="[ITEM, FOCUS_RING, 'text-danger']"

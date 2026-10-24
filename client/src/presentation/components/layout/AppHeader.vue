@@ -16,14 +16,21 @@ const syncBadge = useSyncStatus();
 </script>
 
 <template>
-  <header class="flex items-center justify-between gap-4 px-4 py-3 bg-canvas border-b border-slate-100 lg:px-8">
-    <div class="flex min-w-0 items-center gap-3">
-      <h1 class="text-2xl font-extrabold text-slate">
-        CuidaT
-      </h1>
-      <ProfileMenu v-if="profiles.length > 0" />
+  <!-- From md: logo | calendar menu centered | sync and account. Below md: the calendar menu takes a
+       second row of its own, centered (TECH_SPEC.md section 2). -->
+  <header
+    class="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 px-4 py-3 bg-canvas border-b border-slate-100 md:grid-cols-[1fr_auto_1fr] lg:px-8"
+  >
+    <h1 class="col-start-1 row-start-1 text-2xl font-extrabold text-slate">
+      CuidaT
+    </h1>
+    <div
+      v-if="profiles.length > 0"
+      class="col-span-2 row-start-2 flex min-w-0 justify-center md:col-span-1 md:col-start-2 md:row-start-1"
+    >
+      <ProfileMenu />
     </div>
-    <div class="flex min-w-0 items-center gap-2">
+    <div class="col-start-2 row-start-1 flex min-w-0 items-center justify-end gap-2 md:col-start-3">
       <span
         role="status"
         class="shrink-0 px-3 py-1 text-xs font-bold rounded-full"

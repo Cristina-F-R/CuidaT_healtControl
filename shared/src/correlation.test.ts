@@ -51,7 +51,7 @@ describe('detectCorrelations', () => {
 
   it('matches symptoms that follow a trigger inside the window', () => {
     expect(detectCorrelations(repeatedPair(3), 2)).toEqual([
-      { triggerRootId: 'fish', symptomRootId: 'vomit', occurrences: 3, category: 'Vigilar posible patrón' },
+      { triggerRootId: 'fish', symptomRootId: 'vomit', occurrences: 3, category: 'Vigilar posible patrón', symptomEventIds: ['s-0', 's-1', 's-2'] },
     ]);
   });
 
@@ -116,7 +116,13 @@ describe('detectCorrelations', () => {
       event('vomit-v3', 'symptom', 49, 'vomit'),
     ];
     expect(detectCorrelations(events, 2)).toEqual([
-      { triggerRootId: 'fish', symptomRootId: 'vomit', occurrences: 3, category: 'Vigilar posible patrón' },
+      {
+        triggerRootId: 'fish',
+        symptomRootId: 'vomit',
+        occurrences: 3,
+        category: 'Vigilar posible patrón',
+        symptomEventIds: ['vomit-v1', 'vomit-v2', 'vomit-v3'],
+      },
     ]);
   });
 
@@ -125,7 +131,13 @@ describe('detectCorrelations', () => {
       item.category === 'trigger' ? { ...item, category: 'medication' as const } : item,
     );
     expect(detectCorrelations(events, 2)).toEqual([
-      { triggerRootId: 'med', symptomRootId: 'pain', occurrences: 7, category: 'Patrón detectado' },
+      {
+        triggerRootId: 'med',
+        symptomRootId: 'pain',
+        occurrences: 7,
+        category: 'Patrón detectado',
+        symptomEventIds: ['s-0', 's-1', 's-2', 's-3', 's-4', 's-5', 's-6'],
+      },
     ]);
   });
 
@@ -145,10 +157,19 @@ describe('detectCorrelations', () => {
     ];
     const forward = detectCorrelations(tied, 2);
     expect(detectCorrelations([...tied].reverse(), 2)).toEqual(forward);
+    // Identical instants: symptoms are listed by createdAt, then id.
+    const symptomEventIds = ['s-0', 's-1', 's-2'];
     expect(forward).toEqual([
-      { triggerRootId: 'fish', symptomRootId: 'vomit', occurrences: 3, category: 'Vigilar posible patrón' },
-      { triggerRootId: 'milk', symptomRootId: 'vomit', occurrences: 3, category: 'Vigilar posible patrón' },
+      { triggerRootId: 'fish', symptomRootId: 'vomit', occurrences: 3, category: 'Vigilar posible patrón', symptomEventIds },
+      { triggerRootId: 'milk', symptomRootId: 'vomit', occurrences: 3, category: 'Vigilar posible patrón', symptomEventIds },
     ]);
+  });
+
+  it('lists only the symptoms that found a trigger, so occurrences equal their count', () => {
+    const events = [...repeatedPair(3), event('lonely', 'symptom', 200, 'vomit')];
+    const [pattern] = detectCorrelations(events, 2);
+    expect(pattern?.symptomEventIds).toEqual(['s-0', 's-1', 's-2']);
+    expect(pattern?.occurrences).toBe(pattern?.symptomEventIds.length);
   });
 
   it('handles identical duplicated events without double counting', () => {

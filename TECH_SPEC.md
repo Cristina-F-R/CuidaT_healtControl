@@ -30,10 +30,11 @@ CuidaT is a reactive web application designed for visual tracking, deterministic
      - Explicit Consent Migration (GDPR Art. 9): Registration includes a reactive switch: "Conservar y migrar datos locales existentes a mi cuenta" (enabled by default). If unchecked, the account is provisioned clean and `guestData` is not sent; the local guest data is dropped.
   5. Day Summary Drill-Down (Consultation vs. Normal Mode):
      - Trigger: Activating the "day" button of a calendar cell (it covers the empty area of the cell, see ADR-015) opens `DaySummaryModal.vue`, rendering a chronological breakdown of that date's logged events.
-     - Mode Constraint: In Normal Mode, each row allows editing/deleting. In Consultation Mode (read-only mode for medical visits), editing actions are suppressed.
+     - Mode Constraint: In Normal Mode, each row allows editing/deleting. In Consultation Mode (the global read-only mode of use case 12), editing actions are suppressed. The modal has no mode switch of its own (Phase 4.5).
   6. Calendar Profile Lifecycle Management:
      - Creation: Users can create dedicated profiles with distinct names, a user-defined profile type, avatar emojis, color themes, and custom correlation windows. The type is free text (1-50 chars, sanitized): the UI suggests Mascota, Niño/a and Adulto plus the types the user already created, and typing a new one creates it. It can be edited later like any other profile field. If a registered user has no profile (registration without migrated data), the app shows a "Crea tu primer calendario" onboarding that asks only for name and type (avatar, color and correlation window take defaults and can be edited later); when a guest profile was imported, no onboarding appears. The deletion invariant below prevents going back to zero.
-     - Modification: Existing profiles can be edited via `ProfileEditModal.vue` (name, type, avatar, correlation window). Calendars are listed, switched, edited and created from the calendar menu in the header (`ProfileMenu.vue`); guests only have one, so "Nuevo calendario" shows the locked warning.
+     - Modification: Existing profiles can be edited via `ProfileEditModal.vue` (name, type, avatar, color theme, correlation window). Calendars are listed, switched, edited and created from the calendar menu centered in the header (`ProfileMenu.vue`); guests only have one, so "Nuevo calendario" shows the locked warning.
+     - Color Theme as Identity (Phase 4.5): `color_theme` is one of `PROFILE_COLOR_THEMES` (`slate`, `peach`, `sky`, `mint`; enforced by the domain, the Zod schemas and a `CHECK` constraint). It identifies the calendar at a glance: it tints the avatar and the button of `ProfileMenu.vue` and a 4px top band of `CalendarPanel.vue`. It carries no clinical meaning.
      - Deletion: Profiles can be deleted via `DELETE /api/profiles/:id`.
      - Non-Zero Profile Invariant: UI and backend enforce `canDeleteProfile = profiles.length > 1`; the last remaining profile cannot be deleted.
   7. User Profile Lifecycle, Session State & GDPR Data Rights:
@@ -61,6 +62,12 @@ CuidaT is a reactive web application designed for visual tracking, deterministic
   11. Offline-First Event Logging (ADR-007):
       - Event creation, edition and deletion keep working without connection for authenticated users and are synced later. Profile and catalog mutations require connectivity in v1.
       - The header shows the sync state: "Modo Local" (guest), "Sincronizado", "Pendiente (N)", "Sin conexión".
+  12. Global Consultation Mode (Phase 4.5, ADR-021):
+      - Trigger: a "Modo consulta" switch (`role="switch"`) on the right of the filter row ("Ver todo / Solo síntomas / Solo triggers"). Available to guests and registered users. It always starts off and is not persisted (`useViewMode.ts`); it is reset by `reloadWorkspace()`.
+      - Read-only workspace: the dock (`SidebarDock`) is not rendered and the calendar takes its space (2 columns from `lg`). Placement (select-then-place and drag-and-drop) is disabled. `DaySummaryModal` is read-only. Clicking an event opens its details in `EventDetailModal.vue` (item, date and time, intensity, duration, notes) without editable fields, "Guardar" or "Eliminar registro". `ProfileMenu` hides "Editar calendario" and "Nuevo calendario" (switching calendars stays), the catalog manager is not reachable and `AccountMenu` hides "Eliminar cuenta". Month navigation, density, filters, "Ver resúmenes", calendar switching and sign-out remain available.
+      - Pattern Days: each visible month computes its patterns with the same query as the insights rail (symptoms of the month, triggers from one window earlier, the calendar's window). A day is marked when it holds a symptom listed in `symptomEventIds` of a reported pattern: "Patrón detectado" (`peach`) takes precedence over "Vigilar posible patrón" (`sun`). Only symptom days are marked, in local time, independently of the active filter. Cumulative highlighting across stacked months is planned (section 9.2).
+      - Non-Color Cue (WCAG 1.4.1 / 1.4.11): the band and border alone reach only about 1.1:1 (`sun`) and 1.3:1 (`peach`) against `canvas`, so every marked day also shows an icon badge (`Eye` / `TriangleAlert`) and its day button's `aria-label` ends with "· Vigilar posible patrón" or "· Patrón detectado". A legend explains both marks.
+      - Toggling announces "Modo consulta activado" / "Modo consulta desactivado" through `aria-live="polite"`.
 
 - Dynamic Dock & Catalog Management:
   - Preset catalog (`PRESET_ITEMS`, `shared/src/presets.ts`): 6 sample items: symptoms Vómito, Heces blandas, Malestar / dolor; triggers Pescado and Lácteos; medication Medicación. The guest profile is seeded with them on first load so visitors can try the app (they fill the guest limits, so a custom item needs a deleted slot or an account). Registered profiles start with an empty dock and an empty state that offers "Añadir ítems de ejemplo" (`POST /api/profiles/:profileId/items/presets`, one transaction). Guests who register with migration keep the items they have. Presets are normal items: editable, archivable and deletable. Registered users have no limits.
@@ -74,13 +81,14 @@ CuidaT is a reactive web application designed for visual tracking, deterministic
 ### Design Tokens (Tailwind CSS 3 Extension, `tailwind.config.js`)
 - slate (scale, DEFAULT = 600 = #496580): Primary brand token. Core typography, structural boundaries, and active borders.
   - 50 #F3F6F9, 100 #E5EBF1, 200 #CBD6E0, 300 #A8B9C8, 400 #7E97AC, 500 #5F7C94, 600/DEFAULT #496580, 700 #3B5167, 800 #2F4153, 900 #243242, 950 #172029.
-- peach (#FFDBBB): Warning & Symptom accent. Applied to symptoms.
+- peach (#FFDBBB): Warning & Symptom accent. Applied to symptoms and to "Patrón detectado" (insights cards and consultation day marks).
+- sun (#FFF3BA): Pattern watch accent. Used only for "Vigilar posible patrón" (insights cards and consultation day marks), never for item categories (Phase 4.5).
 - sky (#BADDFF): Informational surface. Applied to medication.
 - mint (#BAFFF5): Positive trigger & confirmation accent. Applied to triggers/foods.
 - tint (#E6F4FE): Soft contextual backgrounds.
 - canvas (#FDFDFD): Clean base canvas, calendar day cells and "white" surfaces (there is no `bg-white`).
 - danger (DEFAULT #DC2626, dark #B91C1C): Destructive actions only.
-- Contrast rule (WCAG AA, measured): `text-slate` (#496580) reaches >= 4.5:1 on canvas, tint, mint, peach and slate-100, but only 4.3:1 on sky. Text placed on `peach`, `sky` or `mint` badges therefore uses `text-slate-800` (>= 7:1).
+- Contrast rule (WCAG AA, measured): `text-slate` (#496580) reaches >= 4.5:1 on canvas, tint, mint, peach, sun and slate-100, but only 4.3:1 on sky. Text placed on `peach`, `sun`, `sky` or `mint` badges therefore uses `text-slate-800` (>= 7:1; 9.4:1 on sun). As non-text marks on `canvas`, the soft tokens stay below 3:1 (WCAG 1.4.11), so they never convey information on their own: an icon and accessible text go with them.
 - Typography: Nunito Sans (variable), self-hosted through `@fontsource-variable/nunito-sans` (no request to Google Fonts, GDPR). `font-sans` maps to `"Nunito Sans Variable"`.
 
 ### Quick Jump Navigator & View Density
@@ -88,8 +96,10 @@ CuidaT is a reactive web application designed for visual tracking, deterministic
 - Multi-Month Density Selector: Segmented control (`1M | 2M | 3M`). Allows stacked consecutive months to visualize long-term trends without hiding any event rows. Guests: locked at `1M`. The active month is shown first and the previous ones below it (a future month never exists).
 
 ### Workspace Layout & Interaction (Tailwind default breakpoints)
-- `lg` (>= 1024px): 3-column grid. Left Rail (232px) for Dock, Center Stage (1fr) for CalendarGrid, Right Rail (276px) for Insights and Pattern Thresholds.
-- `< lg`: single-column stacked layout (Dock, Calendar, Insights).
+- `lg` (>= 1024px): 3-column grid. Left Rail (232px) for Dock, Center Stage (1fr) for CalendarGrid, Right Rail (276px) for Insights and Pattern Thresholds. In Consultation Mode the Left Rail is removed: 2 columns (1fr, 276px).
+- `< lg`: single-column stacked layout (Dock, Calendar, Insights; no Dock in Consultation Mode).
+- Header (`AppHeader.vue`): from `md`, three zones (`grid-cols-[1fr_auto_1fr]`): logo left, calendar menu (`ProfileMenu.vue`) centered, sync badge and account right. Below `md`, two rows: logo with badge and account, then the calendar menu centered.
+- Insights rail: "Vigilar posible patrón" cards on `sun`, "Patrón detectado" cards on `peach`, both with `text-slate-800`, an icon (`Eye` / `TriangleAlert`) and the occurrence count highlighted.
 - Interaction does not depend on width but on input capability:
   - Select-then-place (tap/keyboard/mouse) is available everywhere: a dock item is a toggle button (`aria-pressed`); activating a valid day opens `EventLogModal.vue`.
   - HTML5 Drag-and-Drop is a pointer-only enhancement, enabled only when `matchMedia('(hover: hover) and (pointer: fine)')` matches (`useInteraction.ts`).
@@ -116,7 +126,7 @@ Dependency rule: outer layers depend on inner layers, never the reverse. Busines
 | `server/src/application` | Use cases | `RegisterUser` (with the guest import), `LogEvent`, `EditCatalogItem`, `DeleteAccount`... Depend on ports only. |
 | `server/src/infrastructure` | Adapters | pg repositories, bcrypt/JWT adapters, migrations (`db/`), Sentry. |
 | `server/src/interfaces/http` | Delivery | Routes, controllers, Zod validation, middleware (auth, rate limit, error mapper). Composition root in `server/src/main.ts`. |
-| `client/src/application` | Use cases | Pinia stores, composables (`useCalendar`, `useInteraction`, `useMultiMonth`), sync use cases. Depend on repository ports. |
+| `client/src/application` | Use cases | Pinia stores, composables (`useCalendar`, `useInteraction`, `useMultiMonth`, `useViewMode`), sync use cases. Depend on repository ports. |
 | `client/src/infrastructure` | Adapters | `LocalEventRepository` (guest, localStorage), `ApiEventRepository` (fetch), `SyncQueue` (localforage), API client, Sentry init. |
 | `client/src/presentation` | UI | Components, views, layouts, toasts. |
 
@@ -246,8 +256,9 @@ export interface HealthEvent {
 export interface PatternThreshold {
   triggerRootId: string;
   symptomRootId: string;
-  occurrences: number;
+  occurrences: number; // always symptomEventIds.length
   category: 'Vigilar posible patrón' | 'Patrón detectado';
+  symptomEventIds: string[]; // symptoms counted as occurrences, in the stable order of step 1 (Phase 4.5: consultation day marks)
 }
 
 // The algorithm must:
@@ -322,4 +333,46 @@ export interface PatternThreshold {
   - Decision: accept the risk for guest mode and do not add client-side encryption. The controls are: input sanitization and no `v-html`/`innerHTML` (OWASP A03), a Content Security Policy that allows only same-origin scripts (set by Helmet in Phase 3), no third-party scripts or resources, and a privacy notice that explains that guest data stays in the browser.
   - Registered users: their data is sent over TLS and stored on the server (Neon encrypts at rest). After a successful registration with migration, or an account deletion, the client removes `@cuidat_guest_v1` and `@cuidat_guest_v1.corrupto`.
   - Review: reopen this decision if guest mode is offered to users who cannot use the browser's own protections, or if CSP cannot be enforced.
+- ADR-021: Consultation Mode Is a Presentation State
+  - Context: during a medical visit the device may be handed to a clinician, so editing must be out of reach and patterns must stand out.
+  - Decision: Consultation Mode is a client-side view state (`useViewMode.ts`), global to the workspace, off on every start and never persisted, so nobody finds the app locked without knowing why. It removes editing affordances from the UI; it is not an authorization control, and the API keeps applying the same rules to every request. Pattern day marks reuse `detectCorrelations()` (its `symptomEventIds`), so the calendar, the insights rail and future reports share one engine.
+- ADR-022 (planned): Server-Built Report Snapshots, Client-Rendered PDF
+  - Decision: see section 9.1. Reports are immutable JSON snapshots computed by the server from validated parameters with the shared engine; the browser renders both the on-screen view and the PDF from the same snapshot. No PDF binaries are stored and no health data is sent to third-party rendering services.
+
+---
+
+## 9. Planned After Deployment (Post-Phase)
+
+Designs agreed for after Phase 5. They are not implemented yet; each one is delivered in its own branch and pull request (see the "Post-fase" section of the prompts guide).
+
+### 9.1 Saved Reports (registered users only)
+- Content: an immutable snapshot of one calendar over a period, built from the selection made in "Ver resúmenes": calendar data (name, type, avatar, color theme, correlation window), period, selected lineages (name, emoji and category frozen at generation), detected and watch patterns with occurrences, per-item statistics (log count, intensity distribution and mean, total and mean duration), a chronological day-by-day summary (time, item, intensity, duration, notes) with each day's consultation mark, and the months of the period for the mini calendars.
+- Generation: `POST /api/reports` receives `{ calendarId, from, to, timeZone, symptomRootIds, triggerRootIds, title? }` (Zod: no future dates, at most `REPORT_MAX_MONTHS = 12`, IANA time zone validated with `Intl`, sanitized title). The server loads the data through the usual user-scoped repositories and runs the pure `buildReportSnapshot()` from `shared` (100% unit coverage). Snapshots carry `schemaVersion` and are limited to `REPORT_SNAPSHOT_MAX_BYTES` (1 MB). The client never uploads a snapshot or a file.
+- Storage (`003_health_reports.sql`):
+  CREATE TABLE health_reports (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      calendar_id UUID NOT NULL REFERENCES calendar_profiles(id) ON DELETE CASCADE,
+      title VARCHAR(120) NOT NULL CHECK (length(btrim(title)) > 0),
+      period_from DATE NOT NULL,
+      period_to DATE NOT NULL CHECK (period_to >= period_from),
+      snapshot JSONB NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+  CREATE INDEX idx_reports_calendar ON health_reports(calendar_id);
+  Access always joins `calendar_profiles` on `user_id`; another user's report answers 404.
+- Limit: `REPORTS_MAX_PER_USER = 5`, checked in the creation transaction after locking the user row (`SELECT ... FOR UPDATE`), so two concurrent requests cannot exceed it. Over the limit: 409 `REPORT_LIMIT`.
+- API: `GET /api/reports` (metadata only), `POST /api/reports`, `GET /api/reports/:id`, `DELETE /api/reports/:id`.
+- Client: "Guardar informe" in `CorrelationFilterModal.vue` (guests get the locked warning; disabled offline). "Informes guardados" in `AccountMenu.vue` lists "N de 5" with "Ver", "Descargar PDF" and "Eliminar". `ReportView.vue` and `ReportMiniMonth.vue` render only from the snapshot, never from the stores.
+- PDF: `pdfmake` (MIT), dynamically imported on "Descargar PDF" and excluded from the PWA precache; Nunito Sans TTF (OFL) embedded; brand colors from a constant shared with `tailwind.config.js`; download through a Blob URL revoked right away. It must work under the Helmet CSP without `'unsafe-eval'`; otherwise `jspdf` + `jspdf-autotable` (MIT) replace it.
+- GDPR: reports cascade with their calendar and with the account (Art. 17) and are part of "Descargar mis datos" (Art. 20). Report bodies never reach Sentry (ADR-012).
+- Calendar deletion: the confirmation step of `ProfileDeleteSection.vue` counts the calendar's reports (from the `GET /api/reports` metadata; guests have none). Without reports: "¿Seguro que quieres eliminar «{nombre}»? También se borrarán sus ítems y todos sus registros. Esta acción no se puede deshacer." With reports: "¿Seguro que quieres eliminar «{nombre}»? También se borrarán sus ítems, todos sus registros y {el informe guardado | los N informes guardados} de este calendario. Si quieres conservarlos, descárgalos en PDF antes de continuar. Esta acción no se puede deshacer."
+
+### 9.2 Cumulative Highlighting Across Stacked Months
+- In Consultation Mode with `2M`/`3M`, patterns are computed over the whole visible range (start of the oldest month minus the window, to the end of the newest), and the insights rail describes that same range (its title states it). `1M` is unchanged. Coherence between the marked days and the rail is the requirement, not the computation.
+
+### 9.3 Password Recovery (blocked until a custom domain is available)
+- Neon Auth (managed Better Auth) was evaluated and discarded: it replaces the existing auth stack, sends Neon-branded emails by default and needs a custom SMTP in production. CuidaT keeps its own auth and sends mail through Resend (free tier), which requires a verified custom domain.
+- `004_password_reset.sql`: `password_reset_tokens (id, user_id ON DELETE CASCADE, token_hash, expires_at, used_at)` storing only the SHA-256 of a random token valid for 30 minutes, plus `users.password_changed_at`.
+- `POST /api/auth/password/forgot` always answers 202 with the same message and comparable timing (no account enumeration), shares the auth rate limit and invalidates earlier tokens. `POST /api/auth/password/reset` checks the token (exists, not expired, not used), stores the new bcrypt hash, marks the token used and sets `password_changed_at` in one transaction; the session middleware rejects JWTs issued before `password_changed_at`, which ends existing sessions despite stateless tokens.
+- Mail through an `EmailSender` port (`ResendEmailSender`, `ConsoleEmailSender` for development and tests that never logs tokens in production); env `RESEND_API_KEY`, `EMAIL_FROM`; no health data in emails. The link is `{CLIENT_ORIGIN}/restablecer#token=...`: in the fragment, the token never reaches server logs or the `Referer` header.
 
