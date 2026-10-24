@@ -6,9 +6,10 @@ import { useSyncStatus } from '../../../application/composables/useSyncStatus';
 import { useAuthStore } from '../../../application/stores/useAuthStore';
 import { useProfileStore } from '../../../application/stores/useProfileStore';
 import { FOCUS_RING } from '../../categoryStyles';
+import ProfileMenu from '../profiles/ProfileMenu.vue';
 import AccountMenu from './AccountMenu.vue';
 
-const { activeProfile } = storeToRefs(useProfileStore());
+const { profiles } = storeToRefs(useProfileStore());
 const { user } = storeToRefs(useAuthStore());
 const { openOverlay } = useOverlays();
 const syncBadge = useSyncStatus();
@@ -20,10 +21,7 @@ const syncBadge = useSyncStatus();
       <h1 class="text-2xl font-extrabold text-slate">
         CuidaT
       </h1>
-      <p class="flex min-w-0 items-center gap-2 px-3 py-1 text-sm font-bold text-slate-800 bg-tint rounded-full">
-        <span aria-hidden="true">{{ activeProfile.avatarIcon }}</span>
-        <span class="truncate">{{ activeProfile.name }} · {{ activeProfile.profileType }}</span>
-      </p>
+      <ProfileMenu v-if="profiles.length > 0" />
     </div>
     <div class="flex min-w-0 items-center gap-2">
       <span

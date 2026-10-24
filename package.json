@@ -9,6 +9,7 @@
     "lint": "eslint . --max-warnings 0",
     "test:unit": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "pretest:e2e": "npm run build -w shared",
     "test:e2e": "playwright test",
     "db:migrate": "npm run db:migrate -w server",
     "db:reset": "npm run db:reset -w server --",

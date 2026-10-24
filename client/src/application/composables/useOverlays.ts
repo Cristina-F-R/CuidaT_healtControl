@@ -21,6 +21,9 @@ export type Overlay =
   | EventLogEditOverlay
   | { kind: 'daySummary'; dayKey: string }
   | { kind: 'itemManager' }
+  /** `profileId: null` creates a calendar. */
+  | { kind: 'profileEdit'; profileId: string | null }
+  | { kind: 'correlationFilter' }
   | { kind: 'auth'; mode: AuthFormMode }
   | { kind: 'deleteAccount' };
 

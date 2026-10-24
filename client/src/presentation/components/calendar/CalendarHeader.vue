@@ -3,12 +3,14 @@ import { ChevronLeft, ChevronRight } from '@lucide/vue';
 import { useCalendar } from '../../../application/composables/useCalendar';
 import { useGuestLimits } from '../../../application/composables/useGuestLimits';
 import { FOCUS_RING } from '../../categoryStyles';
+import DateNavigatorPopover from './DateNavigatorPopover.vue';
+import MonthDensitySelector from './MonthDensitySelector.vue';
 
 defineProps<{
   profileName: string;
 }>();
 
-const { monthLabel, canGoNext, isCurrentMonth, goPrevious, goNext, goToday } = useCalendar();
+const { canGoNext, isCurrentMonth, goPrevious, goNext, goToday } = useCalendar();
 const { isGuest, canNavigateMonths, showLockedNotice } = useGuestLimits();
 
 // Guests stay on the current month: a month change shows the locked notice instead (ADR-018).
@@ -30,14 +32,12 @@ const ICON_BUTTON =
       <p class="text-xs font-extrabold uppercase tracking-widest text-slate">
         Historial de {{ profileName }}
       </p>
-      <h2
-        id="calendar-title"
-        class="text-2xl font-semibold text-slate-800"
-      >
-        {{ monthLabel }}
+      <h2 id="calendar-title">
+        <DateNavigatorPopover />
       </h2>
     </div>
-    <div class="flex items-center gap-2">
+    <div class="flex flex-wrap items-center gap-2">
+      <MonthDensitySelector />
       <button
         type="button"
         :disabled="isCurrentMonth"

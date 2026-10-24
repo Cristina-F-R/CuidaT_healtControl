@@ -12,9 +12,13 @@ import type {
 // registered users. They are commands, not "save the whole list": with the API the catalog rules
 // run on the server, so the port carries the intent (create, edit, archive...) and returns the result.
 
+export type ProfilePatch = Partial<ProfileDraft>;
+
 export interface ProfileRepository {
   list(): Promise<CalendarProfile[]>;
   create(draft: ProfileDraft): Promise<CalendarProfile>;
+  /** Changes the given fields of a calendar and returns the result. */
+  update(profileId: string, patch: ProfilePatch): Promise<CalendarProfile>;
   /** Deletes the profile and, by cascade, its items and logs. */
   remove(profileId: string): Promise<void>;
 }

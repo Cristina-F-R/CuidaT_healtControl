@@ -56,7 +56,7 @@ export interface AccountActions {
   /** Sign in and load the account's calendars from the API. */
   signIn: (credentials: LoginBody) => Promise<void>;
   /** Create the account with the guest calendar, then work against the API. */
-  register: (credentials: LoginBody) => Promise<void>;
+  register: (credentials: LoginBody, migrateGuestData?: boolean) => Promise<void>;
   /** Refuses (PendingChangesError) while logs are waiting to be synced, so nothing is lost. */
   signOut: () => Promise<void>;
   /** «Descargar mis datos (JSON)» (GDPR Art. 20). */
@@ -75,8 +75,8 @@ export function useAccount(): AccountActions {
     void useSyncStore().flush();
   }
 
-  async function register(credentials: LoginBody): Promise<void> {
-    await authStore.register(credentials);
+  async function register(credentials: LoginBody, migrateGuestData = true): Promise<void> {
+    await authStore.register(credentials, migrateGuestData);
     await reloadWorkspace();
   }
 

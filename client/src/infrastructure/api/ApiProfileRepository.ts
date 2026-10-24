@@ -1,6 +1,6 @@
 import { profileResponseSchema, profilesResponseSchema } from '@cuidat/shared';
 import type { CalendarProfile, ProfileDraft } from '@cuidat/shared';
-import type { ProfileRepository } from '../../application/ports/repositories';
+import type { ProfilePatch, ProfileRepository } from '../../application/ports/repositories';
 import { apiRequest, NetworkError } from '../http/apiClient';
 import type { OfflineCache } from '../sync/OfflineCache';
 
@@ -27,10 +27,24 @@ export class ApiProfileRepository implements ProfileRepository {
   }
 
   async create(draft: ProfileDraft): Promise<CalendarProfile> {
-    return profileResponseSchema.parse(await apiRequest('POST', '/profiles', draft)).profile;
+    const profile = profileResponseSchema.parse(await apiRequest('POST', '/profiles', draft)).profile;
+    await this.remember((cached) => [...cached, profile]);
+    return profile;
+  }
+
+  async update(profileId: string, patch: ProfilePatch): Promise<CalendarProfile> {
+    const profile = profileResponseSchema.parse(await apiRequest('PATCH', `/profiles/${profileId}`, patch)).profile;
+    await this.remember((cached) => cached.map((candidate) => (candidate.id === profileId ? profile : candidate)));
+    return profile;
   }
 
   async remove(profileId: string): Promise<void> {
     await apiRequest('DELETE', `/profiles/${profileId}`);
+    await this.remember((cached) => cached.filter((candidate) => candidate.id !== profileId));
+  }
+
+  /** Keeps the offline copy in step with a change, so a reload without connection shows it. */
+  private async remember(change: (cached: CalendarProfile[]) => CalendarProfile[]): Promise<void> {
+    await this.cache.putProfiles(change((await this.cache.profiles()) ?? []));
   }
 }

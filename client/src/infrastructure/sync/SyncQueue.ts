@@ -33,6 +33,10 @@ export interface DeleteOperation extends BaseOperation {
 
 export type SyncOperation = UpsertOperation | DeleteOperation;
 
+function calendarOf(operation: SyncOperation): string {
+  return operation.type === 'upsert' ? operation.payload.log.calendarId : operation.payload.calendarId;
+}
+
 /** An operation the server refused with a 4xx (dead-letter list). */
 export interface FailedOperation {
   operation: SyncOperation;
@@ -135,6 +139,16 @@ export class SyncQueue {
 
   clearFailed(): Promise<void> {
     return this.exclusive(() => this.store.removeItem(this.failedKey));
+  }
+
+  /**
+   * Drops the pending operations of a deleted calendar: the server already erased its logs, so sending
+   * them would only fill the dead-letter list. Operations in flight are left to finish on their own.
+   */
+  discardCalendar(calendarId: string): Promise<void> {
+    return this.mutate((operations) =>
+      operations.filter((operation) => this.inFlight.has(operation.opId) || calendarOf(operation) !== calendarId),
+    );
   }
 
   /** Empties the queue and the dead-letter list (account deletion). */

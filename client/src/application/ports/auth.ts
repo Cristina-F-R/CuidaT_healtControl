@@ -1,8 +1,11 @@
 import type { AuthUser, GuestData, LoginBody } from '@cuidat/shared';
 
 export interface RegisterRequest extends LoginBody {
-  /** Guest calendar imported in the same transaction as the account (TECH_SPEC.md use case 6). */
-  guestData: GuestData | null;
+  /**
+   * Guest calendar imported in the same transaction as the account (TECH_SPEC.md use case 6).
+   * Omitted when the user does not migrate it or there is nothing stored.
+   */
+  guestData?: GuestData;
 }
 
 /** Session endpoints of the API. The session itself lives in the `httpOnly` cookie, never in JS. */

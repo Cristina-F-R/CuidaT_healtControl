@@ -50,11 +50,12 @@ Se definen en *Settings → Secrets and variables → Actions* del repositorio.
 
 ### Protección de la rama `main`
 
-`main` debe exigir, antes de fusionar, que pasen **ambos** trabajos de `ci.yml`: `quality` y `e2e` (*Settings → Branches → Require status checks to pass*).
+`main` debe exigir, antes de fusionar, que pasen los tres trabajos: `quality` y `e2e` (de `ci.yml`) y `dependencies` (de `snyk.yml`), como pide `STYLE_GUIDE.md` (*Settings → Branches → Require status checks to pass*). Si falta o caduca `SNYK_TOKEN`, `dependencies` falla y bloquea las fusiones: es intencionado.
 
 ### Riesgos aceptados
 
 - `npm audit` se ejecuta solo sobre dependencias de producción (`--omit=dev`). Las vulnerabilidades de herramientas de desarrollo que dependen de Tailwind 3 no llegan a la imagen final y se aceptan como riesgo. Revisar al migrar a Tailwind 4.
+- Las herramientas de compilación del cliente (Vite, `vite-plugin-pwa` y Workbox) son `devDependencies`: solo se ejecutan en `npm run build` y no forman parte de la imagen. Por eso ni Snyk ni `npm audit --omit=dev` analizan sus dependencias, como `picomatch`, que no tiene versión corregida.
 - En los *pull requests* desde forks, GitHub no expone los secretos: `e2e` y Snyk no pueden ejecutarse allí.
 
 ## Despliegue

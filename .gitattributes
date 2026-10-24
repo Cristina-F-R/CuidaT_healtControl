@@ -1,0 +1,7 @@
+# Line endings are LF everywhere, as in .editorconfig, whatever core.autocrlf says on each machine.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loginBodySchema, newPasswordSchema, registerBodySchema } from './schemas.js';
+import { loginBodySchema, newPasswordSchema, profileCreateSchema, profilePatchSchema, registerBodySchema } from './schemas.js';
 
 describe('password limits (bcrypt, 72 bytes)', () => {
   it('counts UTF-8 bytes, not characters', () => {
@@ -19,5 +19,14 @@ describe('password limits (bcrypt, 72 bytes)', () => {
   it('strips unknown fields from the register body', () => {
     const parsed = registerBodySchema.parse({ email: 'a@b.test', password: 'contraseña-larga-2026', role: 'admin' });
     expect(parsed).not.toHaveProperty('role');
+  });
+});
+
+describe('calendar color theme', () => {
+  it('accepts the palette themes and rejects any other value', () => {
+    expect(profileCreateSchema.safeParse({ name: 'Luna', profileType: 'Adulto', colorTheme: 'peach' }).success).toBe(true);
+    expect(profileCreateSchema.safeParse({ name: 'Luna', profileType: 'Adulto', colorTheme: 'red' }).success).toBe(false);
+    expect(profilePatchSchema.safeParse({ colorTheme: 'sky' }).success).toBe(true);
+    expect(profilePatchSchema.safeParse({ colorTheme: '#ff0000' }).success).toBe(false);
   });
 });

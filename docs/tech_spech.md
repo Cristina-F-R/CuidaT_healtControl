@@ -153,7 +153,7 @@ ALLOW_DB_RESET=false
 
 ## 5. Relational Database Schema (PostgreSQL DDL)
 
-Single source: `docs/neon/001_init.sql` (copied to `server/src/db/migrations/001_init.sql`); keep both identical. It was validated against PostgreSQL 16 with `docs/neon/smoke_test.sql`. Identifiers of profiles, items and logs are generated client-side (`crypto.randomUUID()`) so offline writes are idempotent; the guest import remaps ids on the server. Invariants enforced by the schema: lowercase unique email; non-empty free-text `profile_type`, valid `category`, windows, intensity and duration; non-blank notes (max 300); composite foreign keys that prevent cross-calendar references (items, parent, root, logs); one live version per item lineage; lineage rule (original <=> no parent); cascade deletes (user -> profiles -> items/logs; root item -> all its versions and logs).
+Single source: `docs/neon/001_init.sql` (copied to `server/src/db/migrations/001_init.sql`); keep both identical. It was validated against PostgreSQL 16 with `docs/neon/smoke_test.sql`. Identifiers of profiles, items and logs are generated client-side (`crypto.randomUUID()`) so offline writes are idempotent; the guest import remaps ids on the server. Invariants enforced by the schema: lowercase unique email; non-empty free-text `profile_type`, valid `category`, windows, intensity and duration; `color_theme` limited to the palette (`slate`, `peach`, `sky`, `mint`; added by `002_color_theme_check.sql`, the first migration after `001_init`); non-blank notes (max 300); composite foreign keys that prevent cross-calendar references (items, parent, root, logs); one live version per item lineage; lineage rule (original <=> no parent); cascade deletes (user -> profiles -> items/logs; root item -> all its versions and logs).
 
 Rules that a CHECK cannot express are enforced by triggers in the same migration (the server validates them first, these are the last barrier):
 - `check_log_metrics`: a log stores intensity only if its item version tracks intensity, and duration only if it tracks duration.
@@ -175,7 +175,7 @@ CREATE TABLE calendar_profiles (
     name VARCHAR(100) NOT NULL CHECK (length(btrim(name)) > 0),
     profile_type VARCHAR(50) NOT NULL CHECK (length(btrim(profile_type)) > 0), -- texto libre definido por el usuario
     avatar_icon VARCHAR(50) NOT NULL DEFAULT '👤',
-    color_theme VARCHAR(50) NOT NULL DEFAULT 'slate',
+    color_theme VARCHAR(50) NOT NULL DEFAULT 'slate', -- CHECK de la paleta en 002_color_theme_check.sql
     correlation_window_hours SMALLINT NOT NULL DEFAULT 48
         CHECK (correlation_window_hours IN (2, 6, 12, 24, 36, 48)),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

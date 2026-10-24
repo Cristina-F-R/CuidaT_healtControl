@@ -137,6 +137,12 @@ export const useSyncStore = defineStore('sync', () => {
     await refreshCounts();
   }
 
+  /** Drops what is still queued for a calendar that no longer exists (calendar deletion). */
+  async function discardCalendar(calendarId: string): Promise<void> {
+    await getSyncQueue().discardCalendar(calendarId);
+    await refreshCounts();
+  }
+
   async function dismissFailures(): Promise<void> {
     await getSyncQueue().clearFailed();
     await refreshCounts();
@@ -150,5 +156,5 @@ export const useSyncStore = defineStore('sync', () => {
     lastStatus.value = 'done';
   }
 
-  return { online, pendingCount, failedCount, lastStatus, refreshCounts, flush, notifyChange, start, stop, clearQueue, dismissFailures, resetState };
+  return { online, pendingCount, failedCount, lastStatus, refreshCounts, flush, notifyChange, start, stop, clearQueue, discardCalendar, dismissFailures, resetState };
 });

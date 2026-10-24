@@ -1,7 +1,11 @@
-import type { CorrelationWindowHours } from './types.js';
+import type { CorrelationWindowHours, ProfileColorTheme } from './types.js';
 
 export const CORRELATION_WINDOWS: readonly CorrelationWindowHours[] = [2, 6, 12, 24, 36, 48];
 export const DEFAULT_CORRELATION_WINDOW_HOURS: CorrelationWindowHours = 48;
+
+/** Calendar color themes: the soft tokens of TECH_SPEC.md section 2 (`color_theme` column). */
+export const PROFILE_COLOR_THEMES = ['slate', 'peach', 'sky', 'mint'] as const satisfies readonly ProfileColorTheme[];
+export const DEFAULT_PROFILE_COLOR_THEME: ProfileColorTheme = 'slate';
 
 export const PATTERN_WATCH_MIN_OCCURRENCES = 3;
 export const PATTERN_DETECTED_MIN_OCCURRENCES = 7;
