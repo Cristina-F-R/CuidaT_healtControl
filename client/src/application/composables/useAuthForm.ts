@@ -2,6 +2,7 @@ import { loginBodySchema, PASSWORD_MIN_LENGTH, registerBodySchema } from '@cuida
 import { computed, ref } from 'vue';
 import type { ComputedRef, Ref } from 'vue';
 import { ApiError, NetworkError } from '../../infrastructure/http/apiClient';
+import { DEMO_ACCOUNT } from '../demoAccount';
 import { useAccount } from './useAccount';
 import type { AuthFormMode } from './useOverlays';
 import { useOverlays } from './useOverlays';
@@ -24,6 +25,8 @@ export interface AuthForm {
   passwordHint: ComputedRef<string>;
   switchMode: (next: AuthFormMode) => void;
   submit: () => Promise<void>;
+  /** «Acceso rápido profesorado»: signs in with DEMO_ACCOUNT. */
+  submitDemo: () => Promise<void>;
 }
 
 const PASSWORD_TOO_SHORT = `La contraseña debe tener al menos ${PASSWORD_MIN_LENGTH} caracteres.`;
@@ -111,5 +114,32 @@ export function useAuthForm(initialMode: AuthFormMode): AuthForm {
     }
   }
 
-  return { mode, email, password, migrateGuestData, fieldErrors, formError, submitting, passwordHint, switchMode, submit };
+  /** Quick access with the teaching staff account; creates it first if the database has none yet. */
+  async function submitDemo(): Promise<void> {
+    if (submitting.value) {
+      return;
+    }
+    formError.value = '';
+    fieldErrors.value = {};
+    submitting.value = true;
+    try {
+      try {
+        await account.signIn(DEMO_ACCOUNT);
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.status !== 401) {
+          throw error;
+        }
+        // First use: the guest calendar (the Moby sample) moves to the account, so there is data to review.
+        await account.register(DEMO_ACCOUNT, true);
+      }
+      showToast('Has entrado con el usuario de prueba del profesorado.');
+      closeOverlay();
+    } catch (error) {
+      formError.value = describeFailure(error, 'login');
+    } finally {
+      submitting.value = false;
+    }
+  }
+
+  return { mode, email, password, migrateGuestData, fieldErrors, formError, submitting, passwordHint, switchMode, submit, submitDemo };
 }

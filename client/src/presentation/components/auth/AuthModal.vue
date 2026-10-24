@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { GraduationCap } from '@lucide/vue';
 import { computed, useId } from 'vue';
 import { useAuthForm } from '../../../application/composables/useAuthForm';
 import { useOverlays } from '../../../application/composables/useOverlays';
 import type { AuthFormMode } from '../../../application/composables/useOverlays';
+import { DEMO_ACCOUNT, DEMO_ACCOUNT_NOTE } from '../../../application/demoAccount';
 import AppModal from '../feedback/AppModal.vue';
 import { FOCUS_RING } from '../../categoryStyles';
 
@@ -11,9 +13,10 @@ const props = defineProps<{
 }>();
 
 const { closeOverlay } = useOverlays();
-const { mode, email, password, migrateGuestData, fieldErrors, formError, submitting, passwordHint, switchMode, submit } = useAuthForm(props.initialMode);
+const { mode, email, password, migrateGuestData, fieldErrors, formError, submitting, passwordHint, switchMode, submit, submitDemo } = useAuthForm(props.initialMode);
 
 const hintId = useId();
+const demoNoteId = useId();
 const MODES: { value: AuthFormMode; label: string }[] = [
   { value: 'login', label: 'Iniciar sesión' },
   { value: 'register', label: 'Crear cuenta' },
@@ -123,5 +126,41 @@ const INPUT = 'px-2 py-1.5 font-normal text-slate-800 bg-canvas border border-sl
         </button>
       </div>
     </form>
+
+    <section
+      class="flex flex-col gap-2 p-3 text-sm text-slate-800 bg-tint border border-slate-200 rounded-xl"
+      aria-label="Acceso rápido profesorado"
+    >
+      <p
+        :id="demoNoteId"
+        class="font-bold"
+      >
+        {{ DEMO_ACCOUNT_NOTE }}
+      </p>
+      <dl class="grid grid-cols-[auto_1fr] gap-x-2 text-xs text-slate-600">
+        <dt>Usuario:</dt>
+        <dd class="font-mono break-all">
+          {{ DEMO_ACCOUNT.email }}
+        </dd>
+        <dt>Contraseña:</dt>
+        <dd class="font-mono break-all">
+          {{ DEMO_ACCOUNT.password }}
+        </dd>
+      </dl>
+      <button
+        type="button"
+        :disabled="submitting"
+        :aria-describedby="demoNoteId"
+        class="inline-flex items-center gap-1.5 self-start px-4 py-2 text-sm font-bold text-slate-800 bg-canvas border border-slate-200 rounded-full transition-colors hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+        :class="FOCUS_RING"
+        @click="submitDemo"
+      >
+        <GraduationCap
+          :size="16"
+          aria-hidden="true"
+        />
+        Acceso rápido profesorado
+      </button>
+    </section>
   </AppModal>
 </template>
