@@ -148,4 +148,48 @@ describe('App (guest workflow)', () => {
 
     await wrapper.unmount();
   });
+
+  it('signs in with the teaching staff account from the quick access button', async () => {
+    const wrapper = mount(App, { attachTo: document.body });
+    await flushPromises();
+
+    bodyButton('Iniciar sesión')!.click();
+    await flushPromises();
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Usuario de prueba para corrección profesorado Master en Desarrollo en IA');
+
+    const server = createFakeServer();
+    vi.stubGlobal('fetch', server.fetch);
+    bodyButton('Acceso rápido profesorado')!.click();
+    await flushPromises();
+
+    const login = server.fetch.mock.calls.find(([url]) => url.endsWith('/api/auth/login'));
+    expect(JSON.parse(String(login?.[1]?.body))).toEqual({ email: 'profesorado@cuidat.test', password: 'MasterIA-Correccion-2026' });
+    expect(callsOf(server.fetch)).not.toContain('POST /api/auth/register');
+    expect(wrapper.text()).toContain('Sincronizado');
+    expect(wrapper.text()).toContain('Luna');
+
+    await wrapper.unmount();
+  });
+
+  it('creates the teaching staff account with the sample calendar when it does not exist yet', async () => {
+    const wrapper = mount(App, { attachTo: document.body });
+    await flushPromises();
+
+    bodyButton('Iniciar sesión')!.click();
+    await flushPromises();
+
+    const server = createFakeServer();
+    const fetchMock = vi.fn((input: string, init?: RequestInit) => (input.endsWith('/api/auth/login')
+      ? Promise.resolve(jsonResponse(401, { error: { code: 'UNAUTHORIZED', message: 'Email o contraseña incorrectos.' } }))
+      : server.fetch(input, init)));
+    vi.stubGlobal('fetch', fetchMock);
+    bodyButton('Acceso rápido profesorado')!.click();
+    await flushPromises();
+
+    expect(callsOf(fetchMock)).toEqual(expect.arrayContaining(['POST /api/auth/login', 'POST /api/auth/register']));
+    expect(server.registerBodies[0]).toMatchObject({ email: 'profesorado@cuidat.test', guestData: expect.anything() });
+    expect(wrapper.text()).not.toContain('Modo Local');
+
+    await wrapper.unmount();
+  });
 });

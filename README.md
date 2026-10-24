@@ -4,6 +4,15 @@ Aplicación para registrar el cuidado de perfiles (mascotas, niños, adultos) y 
 
 **Demo pública:** _pendiente de la Fase 5 (Render). Sustituir por la URL cuando exista._
 
+### Acceso para la corrección
+
+Usuario de prueba para corrección profesorado Master en Desarrollo en IA. En la app, **Iniciar sesión → Acceso rápido profesorado** entra directamente con:
+
+- Usuario: `profesorado@cuidat.test`
+- Contraseña: `MasterIA-Correccion-2026`
+
+Si la cuenta aún no existe en la base de datos, el botón la crea la primera vez con el calendario de ejemplo (Moby). Las credenciales son públicas: no guardes datos reales en ella.
+
 ## Puesta en marcha local
 
 ```bash
