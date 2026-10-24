@@ -143,7 +143,7 @@ Every `.vue` component must strictly observe the following block sequence:
 
 ### Session, Onboarding & Identity Component Specifications
 - Header Layout (`AppHeader.vue`): from `md`, `grid grid-cols-[1fr_auto_1fr] items-center`: logo left, `ProfileMenu` centered, sync badge and account right (`justify-self-end`). Below `md`, two rows: logo with badge and account, then `ProfileMenu` centered.
-- Insights Pattern Cards (`PatternSection.vue`): "Vigilar posible patrón" cards `bg-sun text-slate-800` with `Eye`; "Patrón detectado" cards `bg-peach text-slate-800` with `TriangleAlert`; occurrence count in `font-extrabold`. Same marks as the consultation calendar.
+- Insights Pattern Cards (`PatternSection.vue`): "Vigilar posible patrón" cards `bg-sun text-slate-800` with `Eye`; "Patrón detectado" cards `bg-peach text-slate-800` with `TriangleAlert`; occurrence count in `font-extrabold`. The empty-state box keeps the same surface (`bg-sun` / `bg-peach`), never `bg-tint`. Same marks as the consultation calendar.
 - Header Connectivity & Session Badges (`AppHeader.vue`):
   - Guest Mode: Neutral badge using `bg-slate-100 text-slate-600 border border-slate-200` with text "Modo Local".
   - Authenticated, in sync: `bg-mint/40 text-slate-800 border border-mint` with text "Sincronizado".
