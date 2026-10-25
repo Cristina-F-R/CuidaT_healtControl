@@ -6,7 +6,8 @@ import type { ComputedRef } from 'vue';
 import { useEventStore } from '../stores/useEventStore';
 import { useItemDefinitionStore } from '../stores/useItemDefinitionStore';
 import { useProfileStore } from '../stores/useProfileStore';
-import { DAY_KEY_FORMAT, useCalendar } from './useCalendar';
+import { DAY_KEY_FORMAT } from './useCalendar';
+import { useMultiMonth } from './useMultiMonth';
 import { useViewMode } from './useViewMode';
 
 const MS_PER_HOUR = 3_600_000;
@@ -94,42 +95,54 @@ export function splitByCategory(patterns: readonly PatternView[]): { watch: Patt
   };
 }
 
-/** One month: its symptoms and, through the window, the triggers logged just before it. */
-export function monthPatternQuery(monthKey: string, windowHours: CorrelationWindowHours): PatternQuery {
-  const monthStart = dayjs(`${monthKey}-01`);
-  return { from: monthStart.valueOf(), to: monthStart.endOf('month').valueOf(), windowHours };
+/**
+ * The visible months (density 1M, 2M or 3M) as one range: their symptoms and, through the window,
+ * the triggers logged just before the oldest one. The month keys may come in any order.
+ */
+export function visiblePatternQuery(monthKeys: readonly string[], windowHours: CorrelationWindowHours): PatternQuery {
+  const sorted = [...monthKeys].sort();
+  const oldest = sorted[0];
+  const newest = sorted[sorted.length - 1];
+  if (!oldest || !newest) {
+    throw new Error('visiblePatternQuery needs at least one month');
+  }
+  return { from: dayjs(`${oldest}-01`).valueOf(), to: dayjs(`${newest}-01`).endOf('month').valueOf(), windowHours };
+}
+
+/** Correlations of the visible months: the insights rail and the consultation day marks share this query. */
+function useVisiblePatterns(): ComputedRef<PatternView[]> {
+  const { visibleMonthKeys } = useMultiMonth();
+  const profileStore = useProfileStore();
+
+  return computed(() =>
+    collectPatterns(visiblePatternQuery(visibleMonthKeys.value, profileStore.activeProfile.correlationWindowHours)),
+  );
 }
 
 /**
- * Day marks of one visible month, with the same query as the insights panel (each month on its own).
+ * Day marks of the visible months, with the same query as the insights panel (the whole visible range).
  * Empty outside consultation mode, so nothing is computed then.
  */
-export function usePatternDayMarks(monthKey: () => string): ComputedRef<Map<string, DayMark>> {
+export function usePatternDayMarks(): ComputedRef<Map<string, DayMark>> {
   const eventStore = useEventStore();
-  const profileStore = useProfileStore();
   const { consultationMode } = useViewMode();
+  const patterns = useVisiblePatterns();
 
   return computed(() => {
     if (!consultationMode.value) {
       return new Map<string, DayMark>();
     }
-    const patterns = collectPatterns(monthPatternQuery(monthKey(), profileStore.activeProfile.correlationWindowHours));
     const dayById = new Map(eventStore.logs.map((log) => [log.id, dayjs(log.loggedAt).format(DAY_KEY_FORMAT)]));
-    return markPatternDays(patterns, (eventId) => dayById.get(eventId));
+    return markPatternDays(patterns.value, (eventId) => dayById.get(eventId));
   });
 }
 
-/** Correlations of the visible month, shown in the insights panel. */
+/** Correlations of the visible months, shown in the insights panel. */
 export function usePatterns(): {
   watchPatterns: ComputedRef<PatternView[]>;
   detectedPatterns: ComputedRef<PatternView[]>;
 } {
-  const { activeMonthKey } = useCalendar();
-  const profileStore = useProfileStore();
-
-  const patterns = computed(() =>
-    collectPatterns(monthPatternQuery(activeMonthKey.value, profileStore.activeProfile.correlationWindowHours)),
-  );
+  const patterns = useVisiblePatterns();
   const split = computed(() => splitByCategory(patterns.value));
 
   return {
