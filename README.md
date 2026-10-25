@@ -22,7 +22,7 @@ Proyecto final del **Máster en Desarrollo en IA**.
 
 ## 1. Ver la demo desplegada
 
-**URL de la demo:** _pendiente: se publicará aquí tras el primer despliegue en Render (`https://<servicio>.onrender.com`)._
+**URL de la demo:** <https://cuidat.onrender.com/>
 
 > [!NOTE]
 > La demo usa el plan gratuito de Render: el servicio se duerme tras unos 15 minutos sin tráfico y **la primera carga puede tardar hasta un minuto**. Después responde con normalidad.
