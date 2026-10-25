@@ -28,6 +28,9 @@ export default defineConfig({
           environment: 'node',
           include: ['server/src/**/*.test.ts'],
           testTimeout: 20_000,
+          // beforeAll starts PGlite (PostgreSQL in WebAssembly): about 4 s alone, well over the default
+          // 10 s when every server suite starts its own at the same time on a busy machine.
+          hookTimeout: 60_000,
         },
       },
       {
