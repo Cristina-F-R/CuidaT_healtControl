@@ -5,7 +5,7 @@ import { useDayEntries } from '../../../application/composables/useDayEntries';
 import type { DayEntry } from '../../../application/composables/useDayEntries';
 import { useInteraction } from '../../../application/composables/useInteraction';
 import { useOverlays } from '../../../application/composables/useOverlays';
-import { usePatternDayMarks } from '../../../application/composables/usePatterns';
+import type { DayMark } from '../../../application/composables/usePatterns';
 import { usePlacement } from '../../../application/composables/usePlacement';
 import { useViewMode } from '../../../application/composables/useViewMode';
 import CalendarDayCell from './CalendarDayCell.vue';
@@ -17,6 +17,8 @@ const props = defineProps<{
   monthKey: string;
   /** Shows the month name above the grid (stacked months); a single month is named by the header. */
   showTitle: boolean;
+  /** Consultation mode only (empty otherwise): pattern days of the visible range (TECH_SPEC.md use case 12). */
+  dayMarks: ReadonlyMap<string, DayMark>;
 }>();
 
 const slots = computed(() => buildSlots(props.monthKey));
@@ -25,8 +27,6 @@ const { draggingItemId, isDragging, endDrag } = useInteraction();
 const { placeItem, activateDay } = usePlacement();
 const { openOverlay } = useOverlays();
 const { consultationMode } = useViewMode();
-// Consultation mode only (empty otherwise): this month's pattern days (TECH_SPEC.md use case 12).
-const dayMarks = usePatternDayMarks(() => props.monthKey);
 
 function onDropItem(dayKey: string): void {
   if (draggingItemId.value) {

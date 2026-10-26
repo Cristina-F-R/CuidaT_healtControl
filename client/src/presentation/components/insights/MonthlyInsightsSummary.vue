@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { PATTERN_DETECTED_MIN_OCCURRENCES, PATTERN_WATCH_MIN_OCCURRENCES } from '@cuidat/shared';
 import type { ItemCategory } from '@cuidat/shared';
+import dayjs from 'dayjs';
 import { storeToRefs } from 'pinia';
 import { computed } from 'vue';
 import { useOverlays } from '../../../application/composables/useOverlays';
 import { useCalendar } from '../../../application/composables/useCalendar';
+import { useMultiMonth } from '../../../application/composables/useMultiMonth';
 import { usePatterns } from '../../../application/composables/usePatterns';
 import { useEventStore } from '../../../application/stores/useEventStore';
 import { useItemDefinitionStore } from '../../../application/stores/useItemDefinitionStore';
@@ -12,17 +14,25 @@ import { useProfileStore } from '../../../application/stores/useProfileStore';
 import { FOCUS_RING } from '../../categoryStyles';
 import PatternSection from './PatternSection.vue';
 
-const { activeMonthKey, monthName } = useCalendar();
+const { monthName } = useCalendar();
+const { visibleMonthKeys, oldestMonthKey } = useMultiMonth();
 const { logsByDay } = storeToRefs(useEventStore());
 const itemStore = useItemDefinitionStore();
 const { activeProfile } = storeToRefs(useProfileStore());
 const { watchPatterns, detectedPatterns } = usePatterns();
 const { openOverlay } = useOverlays();
 
+// The rail describes the visible months (1M, 2M or 3M), the same range as the patterns: «Resumen de agosto a octubre».
+const periodName = computed(() =>
+  visibleMonthKeys.value.length > 1
+    ? `${dayjs(`${oldestMonthKey.value}-01`).format('MMMM')} a ${monthName.value}`
+    : monthName.value,
+);
+
 const totals = computed(() => {
   const counts: Record<ItemCategory, number> = { symptom: 0, trigger: 0, medication: 0 };
   for (const [dayKey, logs] of logsByDay.value) {
-    if (!dayKey.startsWith(`${activeMonthKey.value}-`)) {
+    if (!visibleMonthKeys.value.includes(dayKey.slice(0, 7))) {
       continue;
     }
     for (const log of logs) {
@@ -52,7 +62,7 @@ const DETECTED_THRESHOLD = `${PATTERN_DETECTED_MIN_OCCURRENCES} o más coinciden
   >
     <div>
       <p class="text-xs font-extrabold uppercase tracking-widest text-slate">
-        Resumen de {{ monthName }}
+        Resumen de {{ periodName }}
       </p>
       <h2
         id="insights-title"

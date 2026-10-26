@@ -7,16 +7,27 @@ Proyecto final del **Máster en Desarrollo en IA**.
 > [!WARNING]
 > **Privacidad:** es una demo académica. No introduzcas datos de salud reales ni contraseñas que uses en otros sitios. Los datos de las cuentas se guardan en Neon (región UE) y pueden borrarse sin aviso.
 
+## Entrega del TFM
+
+| Recurso | Dónde |
+| --- | --- |
+| Código (repositorio público) | <https://github.com/Cristina-F-R/CuidaT_healtControl> |
+| Aplicación desplegada | <https://cuidat.onrender.com/> (usuario de prueba en la [sección 1](#1-ver-la-demo-desplegada)) |
+| Presentación (slides) | [`docs/presentacion/CuidaT_presentacion.pptx`](docs/presentacion/CuidaT_presentacion.pptx) · [versión PDF](docs/presentacion/CuidaT_presentacion.pdf) |
+| Documentación | Este README, [`docs/tech_spech.md`](docs/tech_spech.md) y el resto de la [sección 9](#9-documentación-del-proyecto) |
+| Información del despliegue | [Sección 7](#7-despliegue) |
+
 ## Índice
 
 1. [Ver la demo desplegada](#1-ver-la-demo-desplegada)
 2. [Qué hace la aplicación](#2-qué-hace-la-aplicación)
-3. [Arquitectura y tecnologías](#3-arquitectura-y-tecnologías)
+3. [Stack tecnológico y arquitectura](#3-stack-tecnológico-y-arquitectura)
 4. [Instalar y ejecutar en local](#4-instalar-y-ejecutar-en-local)
 5. [Tests y comprobaciones de calidad](#5-tests-y-comprobaciones-de-calidad)
 6. [Integración continua](#6-integración-continua)
 7. [Despliegue](#7-despliegue)
-8. [Documentación del proyecto](#8-documentación-del-proyecto)
+8. [Estructura del proyecto](#8-estructura-del-proyecto)
+9. [Documentación del proyecto](#9-documentación-del-proyecto)
 
 ---
 
@@ -76,7 +87,21 @@ Si la cuenta aún no existe en la base de datos, el botón la crea la primera ve
 
 ---
 
-## 3. Arquitectura y tecnologías
+## 3. Stack tecnológico y arquitectura
+
+### Stack tecnológico
+
+| Área | Tecnologías |
+| --- | --- |
+| Lenguaje | TypeScript en todo el proyecto (cliente, servidor, dominio compartido y tests) |
+| Cliente | Vue 3 (Composition API), Vite, Pinia, Tailwind CSS, vite-plugin-pwa (PWA instalable), dayjs, DOMPurify, localforage (cola sin conexión en IndexedDB), generación de PDF en el navegador |
+| Servidor | Node.js 22, Express 5, Zod (validación), `pg` (PostgreSQL), bcrypt, JSON Web Tokens en cookie `httpOnly`, Helmet, CORS, límite de peticiones |
+| Base de datos | PostgreSQL en Neon (región UE) con migraciones SQL versionadas |
+| Tests | Vitest, PGlite (PostgreSQL en memoria), Vue Test Utils, Playwright (E2E) |
+| Calidad | ESLint, Husky, lint-staged, commitlint (*Conventional Commits*), GitHub Actions, Snyk, `npm audit` |
+| Despliegue y observabilidad | Docker, Render (Frankfurt), GitHub Container Registry, Sentry (UE, sin datos de salud) |
+
+### Arquitectura
 
 Monorepo con *npm workspaces* y arquitectura limpia (las reglas de negocio no dependen de Vue ni de Express):
 
@@ -91,7 +116,7 @@ Monorepo con *npm workspaces* y arquitectura limpia (las reglas de negocio no de
 - **Producción:** una sola imagen Docker en la que Express sirve el cliente compilado y la API desde el mismo origen, desplegada en Render.
 - **Calidad:** Vitest, Playwright, ESLint, Husky, lint-staged, commitlint, GitHub Actions y Snyk.
 
-El diseño completo, con las decisiones de arquitectura (ADR), está en [`TECH_SPEC.md`](TECH_SPEC.md).
+El diseño completo, con las decisiones de arquitectura (ADR), está en [`docs/tech_spech.md`](docs/tech_spech.md).
 
 ---
 
@@ -227,7 +252,7 @@ Se definen en *Settings → Secrets and variables → Actions* del repositorio.
 
 ### Protección de la rama `main`
 
-`main` debe exigir, antes de fusionar, que pasen los tres trabajos: `quality` y `e2e` (de `ci.yml`) y `dependencies` (de `snyk.yml`), como pide [`style_guide.md`](style_guide.md) (*Settings → Branches → Require status checks to pass*). Si falta o caduca `SNYK_TOKEN`, `dependencies` falla y bloquea las fusiones: es intencionado.
+`main` debe exigir, antes de fusionar, que pasen los tres trabajos: `quality` y `e2e` (de `ci.yml`) y `dependencies` (de `snyk.yml`), como pide [`docs/style_guide.md`](docs/style_guide.md) (*Settings → Branches → Require status checks to pass*). Si falta o caduca `SNYK_TOKEN`, `dependencies` falla y bloquea las fusiones: es intencionado.
 
 ### Riesgos aceptados
 
@@ -267,11 +292,50 @@ El servicio está descrito en [`render.yaml`](render.yaml) (Blueprint): servicio
 
 ---
 
-## 8. Documentación del proyecto
+## 8. Estructura del proyecto
+
+```text
+CuidaT_healtControl/
+├── client/                    # Aplicación web (Vue 3 + Vite)
+│   ├── public/                # Iconos y recursos estáticos de la PWA
+│   └── src/
+│       ├── application/       # Stores de Pinia, composables y puertos (interfaces)
+│       ├── infrastructure/    # API HTTP, almacenamiento local, cola de sincronización, PDF, Sentry
+│       ├── presentation/      # Componentes Vue (calendario, dock, catálogo, cuenta…)
+│       ├── theme/             # Paleta de colores compartida por la UI y el PDF
+│       └── App.vue, main.ts
+├── server/                    # API REST (Express + PostgreSQL)
+│   ├── Dockerfile             # Imagen de producción: sirve la API y el cliente compilado
+│   ├── src/
+│   │   ├── domain/            # Errores y puertos del dominio
+│   │   ├── application/       # Casos de uso (auth, datos, migración de invitado)
+│   │   ├── infrastructure/    # Repositorios, seguridad (bcrypt, JWT), observabilidad
+│   │   ├── interfaces/http/   # Rutas y middleware de Express
+│   │   ├── db/                # Migraciones SQL, migrate y reset
+│   │   └── config/            # Lectura y validación de variables de entorno
+│   └── test/                  # Utilidades de test (PGlite)
+├── shared/src/                # Dominio común: tipos, esquemas Zod, correlaciones, informes
+├── tests/e2e/                 # Pruebas de extremo a extremo con Playwright
+├── docs/
+│   ├── presentacion/          # Slides del TFM (.pptx y .pdf) y capturas
+│   ├── neon/                  # Scripts SQL de la puesta en marcha en Neon
+│   ├── tech_spech.md          # Especificación técnica y ADR
+│   ├── style_guide.md         # Guía de estilo y calidad
+│   └── Nova_guia_prompts.md   # Guía de desarrollo por fases con los prompts usados
+├── .github/workflows/         # CI, Snyk, publicación de la imagen Docker y keep-warm
+├── render.yaml                # Blueprint de despliegue en Render
+├── docker-compose.yml         # Ejecutar la imagen de producción en local
+└── package.json               # Workspaces de npm y scripts comunes
+```
+
+---
+
+## 9. Documentación del proyecto
 
 | Documento | Contenido |
 | --- | --- |
-| [`TECH_SPEC.md`](TECH_SPEC.md) | Especificación técnica: casos de uso, diseño, esquema de la base de datos, algoritmo de correlación, seguridad y decisiones de arquitectura (ADR). |
-| [`style_guide.md`](style_guide.md) | Normas de código, componentes, accesibilidad y calidad. |
+| [`docs/tech_spech.md`](docs/tech_spech.md) | Especificación técnica: casos de uso, diseño, esquema de la base de datos, algoritmo de correlación, seguridad y decisiones de arquitectura (ADR). |
+| [`docs/style_guide.md`](docs/style_guide.md) | Normas de código, componentes, accesibilidad y calidad. |
 | [`docs/Nova_guia_prompts.md`](docs/Nova_guia_prompts.md) | Guía de desarrollo por fases con los *prompts* usados para construir el proyecto con IA. |
 | [`docs/neon/`](docs/neon/) | Scripts SQL de la puesta en marcha inicial en Neon. |
+| [`docs/presentacion/`](docs/presentacion/) | Presentación del TFM en PowerPoint ([`.pptx`](docs/presentacion/CuidaT_presentacion.pptx)) y [PDF](docs/presentacion/CuidaT_presentacion.pdf). |

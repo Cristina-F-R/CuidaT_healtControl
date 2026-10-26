@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia';
 import { useMultiMonth } from '../../../application/composables/useMultiMonth';
+import { usePatternDayMarks } from '../../../application/composables/usePatterns';
 import { useViewMode } from '../../../application/composables/useViewMode';
 import { useProfileStore } from '../../../application/stores/useProfileStore';
 import { PROFILE_THEME } from '../../categoryStyles';
@@ -13,6 +14,8 @@ import PatternLegend from './PatternLegend.vue';
 const { visibleMonthKeys, density } = useMultiMonth();
 const { activeProfile } = storeToRefs(useProfileStore());
 const { consultationMode } = useViewMode();
+// Consultation mode only (empty otherwise): pattern days of all the visible months, computed once (use case 12).
+const dayMarks = usePatternDayMarks();
 </script>
 
 <template>
@@ -28,6 +31,7 @@ const { consultationMode } = useViewMode();
       :key="monthKey"
       :month-key="monthKey"
       :show-title="density > 1"
+      :day-marks="dayMarks"
     />
   </section>
 </template>
